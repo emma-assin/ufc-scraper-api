@@ -108,9 +108,21 @@ def get_next_event():
     fighter_a, fighter_b = [f.strip() for f in main_event.split("vs")]
 
     # 4. Fetch fighter images
-    fighter_a_img = get_fighter_image(fighter_a)
-    fighter_b_img = get_fighter_image(fighter_b)
+    try:
+        fighter_a_img = get_fighter_image(fighter_a)
+    except Exception as e:
+        print("Error fetching image for", fighter_a, ":", e)
+        fighter_a_img = None
+    try:         
+        fighter_b_img = get_fighter_image(fighter_b)
+    except Exception as e:
+        print("Error fetching image for", fighter_b, ":", e)
+        fighter_b_img = None
 
+    print("MAIN EVENT:", fighter_a, "vs", fighter_b)
+    print("A IMG:", fighter_a_img)
+    print("B IMG:", fighter_b_img)
+    
     # 5. Return combined event + fighters + images + fight card
     return {
         "EVENT": next_event["EVENT"],
@@ -137,6 +149,8 @@ def get_past_events():
 
 def get_fighter_image(name):
     base = name.lower().replace(" ", "-")
+
+    # Try multiple possible slugs
     candidates = [
         base,
         f"{base}-0",
@@ -155,7 +169,9 @@ def get_fighter_image(name):
     for slug in candidates:
         url = f"https://www.ufc.com/athlete/{slug}"
         try:
-            response = requests.get(url, headers=headers)
+            print("Trying slug:", slug)
+            response = requests.get(url, headers=headers, timeout=10)
+
             if response.status_code != 200:
                 continue
 
@@ -163,14 +179,15 @@ def get_fighter_image(name):
             img = soup.select_one(".hero-profile__image img")
 
             if img and img.get("src"):
+                print("Found image:", img["src"])
                 return img["src"]
 
-        except:
+        except Exception as e:
+            print("Error fetching slug", slug, ":", e)
             continue
 
+    print("No image found for:", name)
     return None
-
-
 
 
 @app.get("/events")

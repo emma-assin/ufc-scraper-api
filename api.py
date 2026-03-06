@@ -5,6 +5,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import re
+import json
+from datetime import datetime, timedelta
 
 app = FastAPI(title="UFC Stats API")
 
@@ -18,12 +20,32 @@ app.add_middleware(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+PROFILE_CACHE_PATH = BASE_DIR / "fighter_profile_cache.json"
+PROFILE_CACHE_TTL = timedelta(hours=24)
 
 def load_csv(name: str) -> pd.DataFrame:
     path = BASE_DIR / name
     if not path.exists():
         raise FileNotFoundError(f"{name} not found. Run the scraper first.")
     return pd.read_csv(path)
+
+
+def _load_profile_cache() -> dict:
+    if not PROFILE_CACHE_PATH.exists():
+        return {}
+    try:
+        with PROFILE_CACHE_PATH.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_profile_cache(cache: dict) -> None:
+    try:
+        with PROFILE_CACHE_PATH.open("w", encoding="utf-8") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
 
 @app.get("/upcoming")
 def get_upcoming_events():
@@ -140,11 +162,33 @@ def get_next_event():
         elif blue_name:
             fight_title = blue_name
 
+        # Fetch fighter profiles (cached) to provide decision-making data
+        red_profile = {}
+        blue_profile = {}
+
+        if red_name:
+            try:
+                profile = get_fighter_profile(red_name)
+                if profile:
+                    red_profile = profile
+            except Exception as e:
+                print("Error fetching profile for", red_name, ":", e)
+
+        if blue_name:
+            try:
+                profile = get_fighter_profile(blue_name)
+                if profile:
+                    blue_profile = profile
+            except Exception as e:
+                print("Error fetching profile for", blue_name, ":", e)
+
         fights.append({
             "FIGHT": fight_title,
             "WEIGHT_CLASS": weight.get_text(strip=True) if weight else "",
             "RED_IMG": red_img,
             "BLUE_IMG": blue_img,
+            "RED_PROFILE": red_profile,
+            "BLUE_PROFILE": blue_profile,
         })
 
     # 3. Extract main event fighters (bulletproof)
@@ -216,7 +260,25 @@ def _fighter_slug_candidates(name: str):
 
 
 def get_fighter_profile(name: str):
-    """Fetch athlete profile data (image + bio/stats) from UFC.com."""
+    """Fetch athlete profile data (image + bio/stats) from UFC.com.
+
+    This function uses a simple file-backed cache to avoid hitting the UFC site too
+    often. Cached profiles are stored in `fighter_profile_cache.json` for up to
+    `PROFILE_CACHE_TTL`.
+    """
+
+    cache = _load_profile_cache()
+    slug_key = name.lower().replace(" ", "-")
+    now = datetime.utcnow()
+
+    if slug_key in cache:
+        entry = cache[slug_key]
+        try:
+            fetched_at = datetime.fromisoformat(entry.get("fetched_at"))
+            if now - fetched_at < PROFILE_CACHE_TTL:
+                return entry.get("profile")
+        except Exception:
+            pass
 
     headers = {
         "User-Agent": (
@@ -226,6 +288,7 @@ def get_fighter_profile(name: str):
         )
     }
 
+    profile = None
     for slug in _fighter_slug_candidates(name):
         url = f"https://www.ufc.com/athlete/{slug}"
         try:
@@ -257,18 +320,25 @@ def get_fighter_profile(name: str):
                     if num and label:
                         stats[label.get_text(strip=True)] = num.get_text(strip=True)
 
-            return {
+            profile = {
                 "slug": slug,
                 "image": image_url,
                 "bio": bio,
                 "stats": stats,
             }
+            break
 
         except Exception as e:
             print("Error fetching fighter profile", slug, ":", e)
             continue
 
-    return None
+    cache[slug_key] = {
+        "fetched_at": now.isoformat(),
+        "profile": profile,
+    }
+    _save_profile_cache(cache)
+
+    return profile
 
 
 @app.get("/events")

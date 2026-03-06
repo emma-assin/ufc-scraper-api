@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
+import re
 
 app = FastAPI(title="UFC Stats API")
 
@@ -103,17 +104,28 @@ def get_next_event():
             "WEIGHT_CLASS": weight.get_text(strip=True) if weight else ""
         })
 
-    # 3. Extract main event fighters
+    # 3. Extract main event fighters (bulletproof)
     main_event = fights[0]["FIGHT"]
-    fighter_a, fighter_b = [f.strip() for f in main_event.split("vs")]
 
-    # 4. Fetch fighter images
+    # Normalize all possible "vs" formats
+    clean = re.sub(r'\b(vs|vs\.|v|v\.)\b', 'vs', main_event, flags=re.IGNORECASE)
+
+    parts = [p.strip() for p in clean.split("vs")]
+
+    if len(parts) != 2:
+        print("ERROR: Could not split main event:", main_event)
+        fighter_a = fighter_b = "Unknown"
+    else:
+        fighter_a, fighter_b = parts
+
+    # 4. Fetch fighter images safely
     try:
         fighter_a_img = get_fighter_image(fighter_a)
     except Exception as e:
         print("Error fetching image for", fighter_a, ":", e)
         fighter_a_img = None
-    try:         
+
+    try:
         fighter_b_img = get_fighter_image(fighter_b)
     except Exception as e:
         print("Error fetching image for", fighter_b, ":", e)
@@ -122,7 +134,7 @@ def get_next_event():
     print("MAIN EVENT:", fighter_a, "vs", fighter_b)
     print("A IMG:", fighter_a_img)
     print("B IMG:", fighter_b_img)
-    
+
     # 5. Return combined event + fighters + images + fight card
     return {
         "EVENT": next_event["EVENT"],

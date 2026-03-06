@@ -150,28 +150,36 @@ def get_next_event():
     # 3. Extract main event fighters (bulletproof)
     fighter_a = main_red_name or "Unknown"
     fighter_b = main_blue_name or "Unknown"
-    fighter_a_img = main_red_img
-    fighter_b_img = main_blue_img
 
-    # 4. Fetch fighter images safely with fallback
-    if not fighter_a_img and fighter_a != "Unknown":
-        try:
-            fighter_a_img = get_fighter_image(fighter_a)
-        except Exception:
-            fighter_a_img = None
+    # 4. Fetch fighter profiles for additional data
+    fighter_a_profile = {}
+    fighter_b_profile = {}
 
-    if not fighter_b_img and fighter_b != "Unknown":
-        try:
-            fighter_b_img = get_fighter_image(fighter_b)
-        except Exception:
-            fighter_b_img = None
+    try:
+        profile = get_fighter_profile(fighter_a)
+        if profile:
+            fighter_a_profile = profile
+    except Exception as e:
+        print("Error fetching profile for", fighter_a, ":", e)
 
-    if not fighter_a_img:
-        fighter_a_img = FALLBACK_IMG
-    if not fighter_b_img:
-        fighter_b_img = FALLBACK_IMG
+    try:
+        profile = get_fighter_profile(fighter_b)
+        if profile:
+            fighter_b_profile = profile
+    except Exception as e:
+        print("Error fetching profile for", fighter_b, ":", e)
 
-    # 5. Return combined event + fighters + images + fight card
+    def _fallback_image(primary, profile):
+        if primary:
+            return primary
+        if isinstance(profile, dict):
+            return profile.get("image")
+        return None
+
+    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile) or FALLBACK_IMG
+    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile) or FALLBACK_IMG
+
+    # 5. Return combined event + fighters + images + fight card + stats
     return {
         "EVENT": next_event["EVENT"],
         "DATE": next_event["DATE"],
@@ -182,7 +190,9 @@ def get_next_event():
             "A": fighter_a,
             "B": fighter_b,
             "A_IMG": fighter_a_img,
-            "B_IMG": fighter_b_img
+            "B_IMG": fighter_b_img,
+            "A_PROFILE": fighter_a_profile,
+            "B_PROFILE": fighter_b_profile,
         },
         "FIGHTS": fights
     }
@@ -195,16 +205,18 @@ def get_past_events():
     except FileNotFoundError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def get_fighter_image(name):
+def _fighter_slug_candidates(name: str):
     base = name.lower().replace(" ", "-")
-
-    # Try multiple possible slugs
-    candidates = [
+    return [
         base,
         f"{base}-0",
         f"{base}-1",
         f"{base}-2",
     ]
+
+
+def get_fighter_profile(name: str):
+    """Fetch athlete profile data (image + bio/stats) from UFC.com."""
 
     headers = {
         "User-Agent": (
@@ -214,27 +226,48 @@ def get_fighter_image(name):
         )
     }
 
-    for slug in candidates:
+    for slug in _fighter_slug_candidates(name):
         url = f"https://www.ufc.com/athlete/{slug}"
         try:
-            print("Trying slug:", slug)
             response = requests.get(url, headers=headers, timeout=10)
-
             if response.status_code != 200:
                 continue
 
             soup = BeautifulSoup(response.text, "html.parser")
-            img = soup.select_one(".hero-profile__image img")
 
-            if img and img.get("src"):
-                print("Found image:", img["src"])
-                return img["src"]
+            # Image
+            img = soup.select_one(".hero-profile__image img")
+            image_url = img.get("src") if img and img.get("src") else None
+
+            # Bio fields (height, weight, reach, etc.)
+            bio = {}
+            for field in soup.select(".c-bio__field"):
+                label = field.select_one(".c-bio__label")
+                text = field.select_one(".c-bio__text")
+                if label and text:
+                    bio[label.get_text(strip=True)] = text.get_text(strip=True)
+
+            # Stats / records (knockouts/submissions, etc.)
+            stats = {}
+            stats_section = soup.select_one(".stats-records__container")
+            if stats_section:
+                for stat in stats_section.select(".athlete-stats__stat"):
+                    num = stat.select_one(".athlete-stats__stat-numb")
+                    label = stat.select_one(".athlete-stats__stat-text")
+                    if num and label:
+                        stats[label.get_text(strip=True)] = num.get_text(strip=True)
+
+            return {
+                "slug": slug,
+                "image": image_url,
+                "bio": bio,
+                "stats": stats,
+            }
 
         except Exception as e:
-            print("Error fetching slug", slug, ":", e)
+            print("Error fetching fighter profile", slug, ":", e)
             continue
 
-    print("No image found for:", name)
     return None
 
 

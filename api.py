@@ -29,22 +29,31 @@ def get_upcoming_events():
     url = "http://ufcstats.com/statistics/events/upcoming"
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;"
+            "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/",
+        "Connection": "keep-alive",
     }
 
     response = requests.get(url, headers=headers)
 
-    if response.status_code != 200:
-        raise HTTPException(status_code=500, detail="Failed to fetch upcoming events")
-
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Find the FIRST table on the page
     table = soup.find("table")
     if not table:
+        # Debug: print the first 500 chars of HTML
+        print(response.text[:500])
         raise HTTPException(status_code=500, detail="No table found on upcoming page")
 
-    rows = table.find_all("tr")[1:]  # skip header
+    rows = table.find_all("tr")[1:]
 
     events = []
     for row in rows:
@@ -52,20 +61,14 @@ def get_upcoming_events():
         if len(cols) < 3:
             continue
 
-        event_name = cols[0].text.strip()
-        event_url = cols[0].find("a")["href"]
-        date = cols[1].text.strip()
-        location = cols[2].text.strip()
-
         events.append({
-            "EVENT": event_name,
-            "URL": event_url,
-            "DATE": date,
-            "LOCATION": location
+            "EVENT": cols[0].text.strip(),
+            "URL": cols[0].find("a")["href"],
+            "DATE": cols[1].text.strip(),
+            "LOCATION": cols[2].text.strip(),
         })
 
     return events
-
 
 
 @app.get("/past")

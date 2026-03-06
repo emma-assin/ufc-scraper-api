@@ -94,53 +94,82 @@ def get_next_event():
     soup = BeautifulSoup(response.text, "html.parser")
     fight_rows = soup.select(".c-listing-fight__content")
 
-    fights = []
-    for row in fight_rows:
-        fighters = row.select(".c-listing-fight__headline")
-        weight = row.select_one(".c-listing-fight__class")
+    def _slug_to_name(slug: str) -> str:
+        # Convert URL slugs like "max-holloway" to "Max Holloway"
+        return " ".join([p.capitalize() for p in slug.replace("_", "-").split("-") if p])
 
-        fight_title = fighters[0].get_text(strip=True) if fighters else ""
+    def _parse_fighter_corner(corner):
+        if not corner:
+            return None, None
+
+        link = corner.select_one("a")
+        img = corner.select_one("img")
+
+        name = None
+        if link and link.has_attr("href"):
+            slug = link["href"].rstrip("/").split("/")[-1]
+            name = _slug_to_name(slug)
+
+        if not name and img and img.get("alt"):
+            name = img.get("alt").strip()
+
+        img_url = img.get("src") if img and img.get("src") else None
+        return name, img_url
+
+    fights = []
+    main_red_name = main_blue_name = None
+    main_red_img = main_blue_img = None
+
+    for i, row in enumerate(fight_rows):
+        red_corner = row.select_one(".c-listing-fight__corner--red")
+        blue_corner = row.select_one(".c-listing-fight__corner--blue")
+
+        red_name, red_img = _parse_fighter_corner(red_corner)
+        blue_name, blue_img = _parse_fighter_corner(blue_corner)
+
+        if i == 0:
+            main_red_name, main_red_img = red_name, red_img
+            main_blue_name, main_blue_img = blue_name, blue_img
+
+        weight = row.select_one(".c-listing-fight__class-text")
+        fight_title = ""
+        if red_name and blue_name:
+            fight_title = f"{red_name} vs {blue_name}"
+        elif red_name:
+            fight_title = red_name
+        elif blue_name:
+            fight_title = blue_name
 
         fights.append({
             "FIGHT": fight_title,
-            "WEIGHT_CLASS": weight.get_text(strip=True) if weight else ""
+            "WEIGHT_CLASS": weight.get_text(strip=True) if weight else "",
+            "RED_IMG": red_img,
+            "BLUE_IMG": blue_img,
         })
 
     # 3. Extract main event fighters (bulletproof)
-    main_event = fights[0]["FIGHT"]
-
-    # Normalize all possible separators
-    clean = re.sub(r'(vs\.?|v\.?)', 'vs', main_event, flags=re.IGNORECASE)
-    clean = clean.replace("\u00A0", " ")  # remove non‑breaking spaces
-
-    parts = [p.strip() for p in clean.split("vs") if p.strip()]
-
-    if len(parts) != 2:
-        print("ERROR: Could not split main event:", main_event)
-        fighter_a = fighter_b = "Unknown"
-    else:
-        fighter_a, fighter_b = parts
+    fighter_a = main_red_name or "Unknown"
+    fighter_b = main_blue_name or "Unknown"
+    fighter_a_img = main_red_img
+    fighter_b_img = main_blue_img
 
     # 4. Fetch fighter images safely with fallback
-    try:
-        fighter_a_img = get_fighter_image(fighter_a)
-        if not fighter_a_img:
-            fighter_a_img = FALLBACK_IMG
-    except Exception as e:
-        print("Error fetching image for", fighter_a, ":", e)
+    if not fighter_a_img and fighter_a != "Unknown":
+        try:
+            fighter_a_img = get_fighter_image(fighter_a)
+        except Exception:
+            fighter_a_img = None
+
+    if not fighter_b_img and fighter_b != "Unknown":
+        try:
+            fighter_b_img = get_fighter_image(fighter_b)
+        except Exception:
+            fighter_b_img = None
+
+    if not fighter_a_img:
         fighter_a_img = FALLBACK_IMG
-
-    try:
-        fighter_b_img = get_fighter_image(fighter_b)
-        if not fighter_b_img:
-            fighter_b_img = FALLBACK_IMG
-    except Exception as e:
-        print("Error fetching image for", fighter_b, ":", e)
+    if not fighter_b_img:
         fighter_b_img = FALLBACK_IMG
-
-    print("MAIN EVENT:", fighter_a, "vs", fighter_b)
-    print("A IMG:", fighter_a_img)
-    print("B IMG:", fighter_b_img)
 
     # 5. Return combined event + fighters + images + fight card
     return {

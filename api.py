@@ -33,7 +33,11 @@ def get_upcoming_events():
         raise HTTPException(status_code=500, detail="Failed to fetch upcoming events")
 
     soup = BeautifulSoup(response.text, "html.parser")
+
+    # More flexible table selector
     table = soup.find("table", class_="b-statistics__table-events")
+    if not table:
+        table = soup.find("table")  # fallback
 
     if not table:
         raise HTTPException(status_code=500, detail="Upcoming events table not found")
@@ -59,6 +63,7 @@ def get_upcoming_events():
         })
 
     return events
+
 
 @app.get("/past")
 def get_past_events():

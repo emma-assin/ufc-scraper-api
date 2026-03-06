@@ -310,7 +310,7 @@ def get_fighter_profile(name: str):
                 if label and text:
                     bio[label.get_text(strip=True)] = text.get_text(strip=True)
 
-            # Stats / records (knockouts/submissions, etc.)
+            # Stats (knockouts/submissions, etc.)
             stats = {}
             stats_section = soup.select_one(".stats-records__container")
             if stats_section:
@@ -320,11 +320,39 @@ def get_fighter_profile(name: str):
                     if num and label:
                         stats[label.get_text(strip=True)] = num.get_text(strip=True)
 
+            # Record (W-L-D) is not always in the same element; try a few heuristics.
+            record = None
+
+            # 1) Look for common record container selectors
+            record_el = soup.select_one(".hero-profile__record")
+
+            # 2) If not found, look for a bio field titled "Record"
+            if not record_el:
+                for field in soup.select(".c-bio__field"):
+                    if field.get_text(strip=True).lower().startswith("record"):
+                        record_el = field
+                        break
+
+            # 3) If still not found, search for any text node containing "Record" and nearby numeric pattern.
+            if not record_el:
+                record_el = soup.find(string=re.compile(r"\bRecord\b", re.I))
+
+            if record_el:
+                text = record_el.get_text(strip=True) if hasattr(record_el, "get_text") else str(record_el)
+                m = re.search(r"(\d+-\d+(?:-\d+)?)", text)
+                if m:
+                    record = m.group(1)
+                else:
+                    next_num = record_el.find_next(string=re.compile(r"\d+-\d+(?:-\d+)?"))
+                    if next_num:
+                        record = next_num.strip()
+
             profile = {
                 "slug": slug,
                 "image": image_url,
                 "bio": bio,
                 "stats": stats,
+                "record": record,
             }
             break
 

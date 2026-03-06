@@ -26,46 +26,41 @@ def load_csv(name: str) -> pd.DataFrame:
 
 @app.get("/upcoming")
 def get_upcoming_events():
-    url = "http://ufcstats.com/statistics/events/upcoming"
-
+    url = "https://www.ufc.com/events"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/123.0.0.0 Safari/537.36"
-        ),
-        "Accept": (
-            "text/html,application/xhtml+xml,application/xml;"
-            "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-        ),
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.google.com/",
-        "Connection": "keep-alive",
+        )
     }
 
     response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to fetch UFC.com events")
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    table = soup.find("table")
-    if not table:
-        # Debug: print the first 500 chars of HTML
-        print(response.text[:500])
-        raise HTTPException(status_code=500, detail="No table found on upcoming page")
-
-    rows = table.find_all("tr")[1:]
+    # UFC.com upcoming events live inside this container
+    event_cards = soup.select(".c-card-event--result")  # works for upcoming & future cards
 
     events = []
-    for row in rows:
-        cols = row.find_all("td")
-        if len(cols) < 3:
+    for card in event_cards:
+        title_el = card.select_one(".c-card-event--result__headline")
+        date_el = card.select_one(".c-card-event--result__date")
+        location_el = card.select_one(".c-card-event--result__location")
+        link_el = card.select_one("a")
+        img_el = card.select_one("img")
+
+        if not title_el:
             continue
 
         events.append({
-            "EVENT": cols[0].text.strip(),
-            "URL": cols[0].find("a")["href"],
-            "DATE": cols[1].text.strip(),
-            "LOCATION": cols[2].text.strip(),
+            "EVENT": title_el.get_text(strip=True),
+            "DATE": date_el.get_text(strip=True) if date_el else "",
+            "LOCATION": location_el.get_text(strip=True) if location_el else "",
+            "URL": "https://www.ufc.com" + link_el["href"] if link_el else "",
+            "IMAGE": img_el["src"] if img_el else "",
         })
 
     return events

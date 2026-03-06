@@ -66,9 +66,11 @@ def get_upcoming_events():
 
     return events
 
+FALLBACK_IMG = "https://i.imgur.com/0X4vFQy.png"  # high‑contrast fallback
+
 @app.get("/next")
 def get_next_event():
-    # 1. Fetch upcoming events (cached)
+    # 1. Fetch upcoming events
     upcoming = get_upcoming_events()
     if not upcoming:
         raise HTTPException(status_code=404, detail="No upcoming events found")
@@ -84,7 +86,7 @@ def get_next_event():
         )
     }
 
-    # 2. Scrape the event page for fight card
+    # 2. Scrape event page
     response = requests.get(event_url, headers=headers)
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Failed to fetch event details")
@@ -107,10 +109,11 @@ def get_next_event():
     # 3. Extract main event fighters (bulletproof)
     main_event = fights[0]["FIGHT"]
 
-    # Normalize all possible "vs" formats
-    clean = re.sub(r'\b(vs|vs\.|v|v\.)\b', 'vs', main_event, flags=re.IGNORECASE)
+    # Normalize all possible separators
+    clean = re.sub(r'(vs\.?|v\.?)', 'vs', main_event, flags=re.IGNORECASE)
+    clean = clean.replace("\u00A0", " ")  # remove non‑breaking spaces
 
-    parts = [p.strip() for p in clean.split("vs")]
+    parts = [p.strip() for p in clean.split("vs") if p.strip()]
 
     if len(parts) != 2:
         print("ERROR: Could not split main event:", main_event)
@@ -118,18 +121,22 @@ def get_next_event():
     else:
         fighter_a, fighter_b = parts
 
-    # 4. Fetch fighter images safely
+    # 4. Fetch fighter images safely with fallback
     try:
         fighter_a_img = get_fighter_image(fighter_a)
+        if not fighter_a_img:
+            fighter_a_img = FALLBACK_IMG
     except Exception as e:
         print("Error fetching image for", fighter_a, ":", e)
-        fighter_a_img = None
+        fighter_a_img = FALLBACK_IMG
 
     try:
         fighter_b_img = get_fighter_image(fighter_b)
+        if not fighter_b_img:
+            fighter_b_img = FALLBACK_IMG
     except Exception as e:
         print("Error fetching image for", fighter_b, ":", e)
-        fighter_b_img = None
+        fighter_b_img = FALLBACK_IMG
 
     print("MAIN EVENT:", fighter_a, "vs", fighter_b)
     print("A IMG:", fighter_a_img)

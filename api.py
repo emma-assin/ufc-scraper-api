@@ -67,15 +67,14 @@ def get_upcoming_events():
 
 @app.get("/next")
 def get_next_event():
-    # 1. Fetch upcoming events (from your cached UFC.com scraper)
+    # 1. Fetch upcoming events (cached)
     upcoming = get_upcoming_events()
     if not upcoming:
         raise HTTPException(status_code=404, detail="No upcoming events found")
 
-    next_event = upcoming[0]  # first event is the next one
+    next_event = upcoming[0]
     event_url = next_event["URL"]
 
-    # 2. Scrape the event page for fight card
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -84,13 +83,12 @@ def get_next_event():
         )
     }
 
+    # 2. Scrape the event page for fight card
     response = requests.get(event_url, headers=headers)
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Failed to fetch event details")
 
     soup = BeautifulSoup(response.text, "html.parser")
-
-    # UFC.com fight card selector
     fight_rows = soup.select(".c-listing-fight__content")
 
     fights = []
@@ -98,26 +96,36 @@ def get_next_event():
         fighters = row.select(".c-listing-fight__headline")
         weight = row.select_one(".c-listing-fight__class")
 
-        if len(fighters) >= 1:
-            fight_title = fighters[0].get_text(strip=True)
-        else:
-            fight_title = ""
+        fight_title = fighters[0].get_text(strip=True) if fighters else ""
 
         fights.append({
             "FIGHT": fight_title,
             "WEIGHT_CLASS": weight.get_text(strip=True) if weight else ""
         })
 
-    # 3. Return combined event + fights
+    # 3. Extract main event fighters
+    main_event = fights[0]["FIGHT"]
+    fighter_a, fighter_b = [f.strip() for f in main_event.split("vs")]
+
+    # 4. Fetch fighter images
+    fighter_a_img = get_fighter_image(fighter_a)
+    fighter_b_img = get_fighter_image(fighter_b)
+
+    # 5. Return combined event + fighters + images + fight card
     return {
         "EVENT": next_event["EVENT"],
         "DATE": next_event["DATE"],
         "LOCATION": next_event["LOCATION"],
         "URL": next_event["URL"],
         "IMAGE": next_event["IMAGE"],
+        "MAIN_EVENT_FIGHTERS": {
+            "A": fighter_a,
+            "B": fighter_b,
+            "A_IMG": fighter_a_img,
+            "B_IMG": fighter_b_img
+        },
         "FIGHTS": fights
     }
-
 
 @app.get("/past")
 def get_past_events():
@@ -126,6 +134,32 @@ def get_past_events():
         return df.to_dict(orient="records")
     except FileNotFoundError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+def get_fighter_image(name):
+    slug = name.lower().replace(" ", "-")
+    url = f"https://www.ufc.com/athlete/{slug}"
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        )
+    }
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return None
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    img = soup.select_one(".hero-profile__image img")
+
+    if img and img.get("src"):
+        return img["src"]
+
+    return None
+
+
 
 @app.get("/events")
 def get_all_events():

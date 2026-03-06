@@ -27,20 +27,22 @@ def load_csv(name: str) -> pd.DataFrame:
 @app.get("/upcoming")
 def get_upcoming_events():
     url = "http://ufcstats.com/statistics/events/upcoming"
-    response = requests.get(url)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
+    response = requests.get(url, headers=headers)
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Failed to fetch upcoming events")
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # More flexible table selector
-    table = soup.find("table", class_="b-statistics__table-events")
+    # Find the FIRST table on the page
+    table = soup.find("table")
     if not table:
-        table = soup.find("table")  # fallback
-
-    if not table:
-        raise HTTPException(status_code=500, detail="Upcoming events table not found")
+        raise HTTPException(status_code=500, detail="No table found on upcoming page")
 
     rows = table.find_all("tr")[1:]  # skip header
 
@@ -63,6 +65,7 @@ def get_upcoming_events():
         })
 
     return events
+
 
 
 @app.get("/past")

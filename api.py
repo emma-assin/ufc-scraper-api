@@ -136,8 +136,13 @@ def get_past_events():
         raise HTTPException(status_code=500, detail=str(e))
 
 def get_fighter_image(name):
-    slug = name.lower().replace(" ", "-")
-    url = f"https://www.ufc.com/athlete/{slug}"
+    base = name.lower().replace(" ", "-")
+    candidates = [
+        base,
+        f"{base}-0",
+        f"{base}-1",
+        f"{base}-2",
+    ]
 
     headers = {
         "User-Agent": (
@@ -147,17 +152,24 @@ def get_fighter_image(name):
         )
     }
 
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None
+    for slug in candidates:
+        url = f"https://www.ufc.com/athlete/{slug}"
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                continue
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    img = soup.select_one(".hero-profile__image img")
+            soup = BeautifulSoup(response.text, "html.parser")
+            img = soup.select_one(".hero-profile__image img")
 
-    if img and img.get("src"):
-        return img["src"]
+            if img and img.get("src"):
+                return img["src"]
+
+        except:
+            continue
 
     return None
+
 
 
 

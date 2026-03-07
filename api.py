@@ -132,11 +132,14 @@ def get_next_event():
             slug = link["href"].rstrip("/").split("/")[-1]
             name = _slug_to_name(slug)
 
-        if not name and img and img.get("alt"):
-            name = img.get("alt").strip()
+        if not name or name == "Unknown":
+            if img and img.get("alt"):
+                name = img.get("alt").strip()
 
         img_url = img.get("src") if img and img.get("src") else None
-        return name, img_url
+        if not img_url:
+            img_url = FALLBACK_IMG
+        return name or "Unknown", img_url
 
     fights = []
     main_red_name = main_blue_name = None
@@ -155,18 +158,20 @@ def get_next_event():
 
         weight = row.select_one(".c-listing-fight__class-text")
         fight_title = ""
-        if red_name and blue_name:
+        if red_name and blue_name and red_name != "Unknown" and blue_name != "Unknown":
             fight_title = f"{red_name} vs {blue_name}"
-        elif red_name:
+        elif red_name and red_name != "Unknown":
             fight_title = red_name
-        elif blue_name:
+        elif blue_name and blue_name != "Unknown":
             fight_title = blue_name
+        else:
+            fight_title = "Unknown Fight"
 
         # Fetch fighter profiles (cached) to provide decision-making data
         red_profile = {}
         blue_profile = {}
 
-        if red_name:
+        if red_name and red_name != "Unknown":
             try:
                 profile = get_fighter_profile(red_name)
                 if profile:
@@ -174,7 +179,7 @@ def get_next_event():
             except Exception as e:
                 print("Error fetching profile for", red_name, ":", e)
 
-        if blue_name:
+        if blue_name and blue_name != "Unknown":
             try:
                 profile = get_fighter_profile(blue_name)
                 if profile:
@@ -200,28 +205,30 @@ def get_next_event():
     fighter_b_profile = {}
 
     try:
-        profile = get_fighter_profile(fighter_a)
-        if profile:
-            fighter_a_profile = profile
+        if fighter_a != "Unknown":
+            profile = get_fighter_profile(fighter_a)
+            if profile:
+                fighter_a_profile = profile
     except Exception as e:
         print("Error fetching profile for", fighter_a, ":", e)
 
     try:
-        profile = get_fighter_profile(fighter_b)
-        if profile:
-            fighter_b_profile = profile
+        if fighter_b != "Unknown":
+            profile = get_fighter_profile(fighter_b)
+            if profile:
+                fighter_b_profile = profile
     except Exception as e:
         print("Error fetching profile for", fighter_b, ":", e)
 
     def _fallback_image(primary, profile):
-        if primary:
+        if primary and primary != FALLBACK_IMG:
             return primary
         if isinstance(profile, dict):
             return profile.get("image")
-        return None
+        return FALLBACK_IMG
 
-    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile) or FALLBACK_IMG
-    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile) or FALLBACK_IMG
+    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile)
+    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile)
 
     # 5. Return combined event + fighters + images + fight card + stats
     return {
@@ -429,6 +436,8 @@ def get_previous_event():
     fight_rows = soup.select(".c-listing-fight__content")
 
     def _slug_to_name(slug: str) -> str:
+        if not slug or slug == "unknown":
+            return "Unknown"
         return " ".join([p.capitalize() for p in slug.replace("_", "-").split("-") if p])
 
     def _parse_fighter_corner(corner):
@@ -440,10 +449,13 @@ def get_previous_event():
         if link and link.has_attr("href"):
             slug = link["href"].rstrip("/").split("/")[-1]
             name = _slug_to_name(slug)
-        if not name and img and img.get("alt"):
-            name = img.get("alt").strip()
+        if not name or name == "Unknown":
+            if img and img.get("alt"):
+                name = img.get("alt").strip()
         img_url = img.get("src") if img and img.get("src") else None
-        return name, img_url
+        if not img_url:
+            img_url = FALLBACK_IMG
+        return name or "Unknown", img_url
 
     fights = []
     main_red_name = main_blue_name = None
@@ -459,28 +471,35 @@ def get_previous_event():
             main_blue_name, main_blue_img = blue_name, blue_img
         weight = row.select_one(".c-listing-fight__class-text")
         fight_title = ""
-        if red_name and blue_name:
+        if red_name and blue_name and red_name != "Unknown" and blue_name != "Unknown":
             fight_title = f"{red_name} vs {blue_name}"
-        elif red_name:
+        elif red_name and red_name != "Unknown":
             fight_title = red_name
-        elif blue_name:
+        elif blue_name and blue_name != "Unknown":
             fight_title = blue_name
+        else:
+            fight_title = "Unknown Fight"
+
+        # Fetch fighter profiles (cached) to provide decision-making data
         red_profile = {}
         blue_profile = {}
-        if red_name:
+
+        if red_name and red_name != "Unknown":
             try:
                 profile = get_fighter_profile(red_name)
                 if profile:
                     red_profile = profile
             except Exception as e:
                 print("Error fetching profile for", red_name, ":", e)
-        if blue_name:
+
+        if blue_name and blue_name != "Unknown":
             try:
                 profile = get_fighter_profile(blue_name)
                 if profile:
                     blue_profile = profile
             except Exception as e:
                 print("Error fetching profile for", blue_name, ":", e)
+
         fights.append({
             "FIGHT": fight_title,
             "WEIGHT_CLASS": weight.get_text(strip=True) if weight else "",
@@ -489,30 +508,42 @@ def get_previous_event():
             "RED_PROFILE": red_profile,
             "BLUE_PROFILE": blue_profile,
         })
+
+    # 3. Extract main event fighters (bulletproof)
     fighter_a = main_red_name or "Unknown"
     fighter_b = main_blue_name or "Unknown"
+
+    # 4. Fetch fighter profiles for additional data
     fighter_a_profile = {}
     fighter_b_profile = {}
+
     try:
-        profile = get_fighter_profile(fighter_a)
-        if profile:
-            fighter_a_profile = profile
+        if fighter_a != "Unknown":
+            profile = get_fighter_profile(fighter_a)
+            if profile:
+                fighter_a_profile = profile
     except Exception as e:
         print("Error fetching profile for", fighter_a, ":", e)
+
     try:
-        profile = get_fighter_profile(fighter_b)
-        if profile:
-            fighter_b_profile = profile
+        if fighter_b != "Unknown":
+            profile = get_fighter_profile(fighter_b)
+            if profile:
+                fighter_b_profile = profile
     except Exception as e:
         print("Error fetching profile for", fighter_b, ":", e)
+
     def _fallback_image(primary, profile):
-        if primary:
+        if primary and primary != FALLBACK_IMG:
             return primary
         if isinstance(profile, dict):
             return profile.get("image")
-        return None
-    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile) or FALLBACK_IMG
-    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile) or FALLBACK_IMG
+        return FALLBACK_IMG
+
+    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile)
+    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile)
+
+    # 5. Return combined event + fighters + images + fight card + stats
     return {
         "EVENT": last_event["EVENT"],
         "DATE": last_event["DATE"],

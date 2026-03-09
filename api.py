@@ -7,10 +7,6 @@ from bs4 import BeautifulSoup
 import re
 import json
 from datetime import datetime, timedelta
-import yaml
-import sys
-sys.path.append(str(Path(__file__).resolve().parent))
-import scrape_ufc_stats_library as LIB
 
 app = FastAPI(title="UFC Stats API")
 
@@ -541,15 +537,11 @@ def get_stats():
 
 @app.get("/previous")
 def get_previous_event():
-    # Load config to get completed_events_all_url
-    config_path = BASE_DIR / "scrape_ufc_stats_config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    completed_events_url = config["completed_events_all_url"]
-
-    # Scrape all completed events
-    soup = LIB.get_soup(completed_events_url)
-    df = LIB.parse_event_details(soup)
+    # 1. Load most recent past event
+    try:
+        df = load_csv("ufc_event_details.csv")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     if df.empty:
         raise HTTPException(status_code=404, detail="No past events found")
     last_event = df.iloc[0].to_dict()  # Assumes most recent is first
@@ -565,7 +557,7 @@ def get_previous_event():
         )
     }
 
-    # Scrape event page for fight card
+    # 2. Scrape event page for fight card
     response = requests.get(event_url, headers=headers)
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Failed to fetch event details")

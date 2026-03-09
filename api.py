@@ -68,15 +68,31 @@ def get_upcoming_events():
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # UFC.com upcoming events live inside this container
-    event_cards = soup.select(".c-card-event--result")  # works for upcoming & future cards
-
+    # UFC.com upcoming events are listed as headings with anchor links
     events = []
-    for card in event_cards:
-        title_el = card.select_one(".c-card-event--result__headline")
-        date_el = card.select_one(".c-card-event--result__date")
-        location_el = card.select_one(".c-card-event--result__location")
-        link_el = card.select_one("a")
+    event_headings = soup.select("h3 a[href^='/event/']")
+    for heading in event_headings:
+        title = heading.get_text(strip=True)
+        url = "https://www.ufc.com" + heading.get("href")
+        # Find date and location nearby (search parent or next elements)
+        date = ""
+        location = ""
+        parent = heading.find_parent()
+        if parent:
+            # Try to find date and location in siblings
+            date_el = parent.find_next_sibling("p")
+            if date_el:
+                date = date_el.get_text(strip=True)
+            location_el = parent.find_next_sibling("h5")
+            if location_el:
+                location = location_el.get_text(strip=True)
+        events.append({
+            "EVENT": title,
+            "URL": url,
+            "DATE": date,
+            "LOCATION": location
+        })
+    return events
 @app.get("/last")
 def get_last_event():
     # 1. Fetch past events

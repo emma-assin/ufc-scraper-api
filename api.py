@@ -77,20 +77,152 @@ def get_upcoming_events():
         date_el = card.select_one(".c-card-event--result__date")
         location_el = card.select_one(".c-card-event--result__location")
         link_el = card.select_one("a")
-        img_el = card.select_one("img")
+@app.get("/last")
+def get_last_event():
+    # 1. Fetch past events
+    try:
+        df = load_csv("ufc_event_details.csv")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        if not title_el:
-            continue
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No past events found")
 
-        events.append({
-            "EVENT": title_el.get_text(strip=True),
-            "DATE": date_el.get_text(strip=True) if date_el else "",
-            "LOCATION": location_el.get_text(strip=True) if location_el else "",
-            "URL": "https://www.ufc.com" + link_el["href"] if link_el else "",
-            "IMAGE": img_el["src"] if img_el else "",
+    # 2. Find the most recent past event
+    df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+    df = df.dropna(subset=["DATE"])
+    df = df.sort_values("DATE", ascending=False)
+    last_event = df.iloc[0]
+
+    event_url = last_event["URL"]
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        )
+    }
+
+    # 3. Scrape event page
+    response = requests.get(event_url, headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to fetch event details")
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    fight_rows = soup.select(".c-listing-fight__content")
+
+    def _slug_to_name(slug: str) -> str:
+        return " ".join([p.capitalize() for p in slug.replace("_", "-").split("-") if p])
+
+    def _parse_fighter_corner(corner):
+        if not corner:
+            return None, None
+        link = corner.select_one("a")
+        img = corner.select_one("img")
+        name = None
+        if link and link.has_attr("href"):
+            slug = link["href"].rstrip("/").split("/")[-1]
+            name = _slug_to_name(slug)
+        if not name or name == "Unknown":
+            if img and img.get("alt"):
+                name = img.get("alt").strip()
+        img_url = img.get("src") if img and img.get("src") else None
+        if not img_url:
+            img_url = FALLBACK_IMG
+        return name or "Unknown", img_url
+
+    fights = []
+    main_red_name = main_blue_name = None
+    main_red_img = main_blue_img = None
+
+    for i, row in enumerate(fight_rows):
+        red_corner = row.select_one(".c-listing-fight__corner--red")
+        blue_corner = row.select_one(".c-listing-fight__corner--blue")
+        red_name, red_img = _parse_fighter_corner(red_corner)
+        blue_name, blue_img = _parse_fighter_corner(blue_corner)
+        if i == 0:
+            main_red_name, main_red_img = red_name, red_img
+            main_blue_name, main_blue_img = blue_name, blue_img
+        weight = row.select_one(".c-listing-fight__class-text")
+        fight_title = ""
+        if red_name and blue_name and red_name != "Unknown" and blue_name != "Unknown":
+            fight_title = f"{red_name} vs {blue_name}"
+        elif red_name and red_name != "Unknown":
+            fight_title = red_name
+        elif blue_name and blue_name != "Unknown":
+            fight_title = blue_name
+        else:
+            fight_title = "Unknown Fight"
+        red_profile = {}
+        blue_profile = {}
+        if red_name and red_name != "Unknown":
+            try:
+                profile = get_fighter_profile(red_name)
+                if profile:
+                    red_profile = profile
+            except Exception as e:
+                print("Error fetching profile for", red_name, ":", e)
+        if blue_name and blue_name != "Unknown":
+            try:
+                profile = get_fighter_profile(blue_name)
+                if profile:
+                    blue_profile = profile
+            except Exception as e:
+                print("Error fetching profile for", blue_name, ":", e)
+        fights.append({
+            "FIGHT": fight_title,
+            "WEIGHT_CLASS": weight.get_text(strip=True) if weight else "",
+            "RED_IMG": red_img,
+            "BLUE_IMG": blue_img,
+            "RED_PROFILE": red_profile,
+            "BLUE_PROFILE": blue_profile,
         })
 
-    return events
+    fighter_a = main_red_name or "Unknown"
+    fighter_b = main_blue_name or "Unknown"
+    fighter_a_profile = {}
+    fighter_b_profile = {}
+    try:
+        if fighter_a != "Unknown":
+            profile = get_fighter_profile(fighter_a)
+            if profile:
+                fighter_a_profile = profile
+    except Exception as e:
+        print("Error fetching profile for", fighter_a, ":", e)
+    try:
+        if fighter_b != "Unknown":
+            profile = get_fighter_profile(fighter_b)
+            if profile:
+                fighter_b_profile = profile
+    except Exception as e:
+        print("Error fetching profile for", fighter_b, ":", e)
+
+    def _fallback_image(primary, profile):
+        if primary and primary != FALLBACK_IMG:
+            return primary
+        if isinstance(profile, dict):
+            return profile.get("image")
+        return FALLBACK_IMG
+
+    fighter_a_img = _fallback_image(main_red_img, fighter_a_profile)
+    fighter_b_img = _fallback_image(main_blue_img, fighter_b_profile)
+
+    return {
+        "EVENT": last_event["EVENT"],
+        "DATE": last_event["DATE"].strftime("%Y-%m-%d") if hasattr(last_event["DATE"], "strftime") else str(last_event["DATE"]),
+        "LOCATION": last_event["LOCATION"],
+        "URL": last_event["URL"],
+        "IMAGE": last_event["IMAGE"],
+        "MAIN_EVENT_FIGHTERS": {
+            "A": fighter_a,
+            "B": fighter_b,
+            "A_IMG": fighter_a_img,
+            "B_IMG": fighter_b_img,
+            "A_PROFILE": fighter_a_profile,
+            "B_PROFILE": fighter_b_profile,
+        },
+        "FIGHTS": fights
+    }
 
 FALLBACK_IMG = "https://i.imgur.com/0X4vFQy.png"  # high‑contrast fallback
 
@@ -317,32 +449,14 @@ def get_fighter_profile(name: str):
             bio = {}
             for field in soup.select(".c-bio__field"):
                 label = field.select_one(".c-bio__label")
-                text = field.select_one(".c-bio__text")
-                if label and text:
-                    bio[label.get_text(strip=True)] = text.get_text(strip=True)
-
-            # Stats (knockouts/submissions, etc.)
-            stats = {}
-            stats_section = soup.select_one(".stats-records__container")
-            if stats_section:
-                for stat in stats_section.select(".athlete-stats__stat"):
-                    num = stat.select_one(".athlete-stats__stat-numb")
-                    label = stat.select_one(".athlete-stats__stat-text")
-                    if num and label:
-                        stats[label.get_text(strip=True)] = num.get_text(strip=True)
-
-            # Record (W-L-D) is not always in the same element; try a few heuristics.
-            record = None
-
-            # 1) Look for common record container selectors
-            record_el = soup.select_one(".hero-profile__record")
-
-            # 2) If not found, look for a bio field titled "Record"
-            if not record_el:
-                for field in soup.select(".c-bio__field"):
-                    if field.get_text(strip=True).lower().startswith("record"):
-                        record_el = field
-                        break
+                value = field.select_one(".c-bio__value")
+                if label and value:
+                    bio[label.get_text(strip=True)] = value.get_text(strip=True)
+            record_el = None
+            for field in soup.select(".c-bio__field"):
+                if field.get_text(strip=True).lower().startswith("record"):
+                    record_el = field
+                    break
 
             # 3) If still not found, search for any text node containing "Record" and nearby numeric pattern.
             if not record_el:
@@ -362,7 +476,6 @@ def get_fighter_profile(name: str):
                 "slug": slug,
                 "image": image_url,
                 "bio": bio,
-                "stats": stats,
                 "record": record,
             }
             break

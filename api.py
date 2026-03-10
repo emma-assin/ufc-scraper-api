@@ -144,10 +144,15 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         blue_name, blue_img = _parse_fighter_corner(blue_corner)
 
         # Determine winner
+        # Determine winner using UFC.com's new markup
         winner = None
-        if red_corner and "is-winner" in red_corner.get("class", []):
+
+        outcome_red = row.select_one(".c-listing-fight__corner--red .c-listing-fight__outcome--win")
+        outcome_blue = row.select_one(".c-listing-fight__corner--blue .c-listing-fight__outcome--win")
+
+        if outcome_red:
             winner = red_name
-        elif blue_corner and "is-winner" in blue_corner.get("class", []):
+        elif outcome_blue:
             winner = blue_name
 
         # Method / Round / Time

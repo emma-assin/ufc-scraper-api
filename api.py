@@ -124,7 +124,7 @@ def _parse_fighter_corner(corner) -> (str, str):
 def _get_event_details(event_url: str) -> Dict[str, Any]:
     soup = _get_soup(event_url)
 
-    # Event hero image (if present)
+    # Event hero image
     hero_img = None
     hero = soup.select_one(".c-hero__image img") or soup.select_one(".c-hero--full img")
     if hero and hero.get("src"):
@@ -142,6 +142,26 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
 
         red_name, red_img = _parse_fighter_corner(red_corner)
         blue_name, blue_img = _parse_fighter_corner(blue_corner)
+
+        # Determine winner
+        winner = None
+        if red_corner and "is-winner" in red_corner.get("class", []):
+            winner = red_name
+        elif blue_corner and "is-winner" in blue_corner.get("class", []):
+            winner = blue_name
+
+        # Method / Round / Time
+        method = round_num = time = ""
+        result_box = row.select_one(".c-listing-fight__result-text")
+        if result_box:
+            spans = [s.get_text(strip=True) for s in result_box.select("span")]
+            for s in spans:
+                if "Round" in s:
+                    round_num = s.replace("Round:", "").strip()
+                elif "Time" in s:
+                    time = s.replace("Time:", "").strip()
+                else:
+                    method = s  # KO/TKO, SUB, DEC, etc.
 
         if i == 0:
             main_red_name, main_red_img = red_name, red_img
@@ -167,6 +187,10 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 "BLUE_NAME": blue_name,
                 "RED_IMG": red_img,
                 "BLUE_IMG": blue_img,
+                "WINNER": winner,
+                "METHOD": method,
+                "ROUND": round_num,
+                "TIME": time,
             }
         )
 

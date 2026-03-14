@@ -4,6 +4,9 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+import json
+import os
+import re
 
 BASE_URL = "https://www.ufc.com"
 EVENTS_URL = f"{BASE_URL}/events"
@@ -15,6 +18,31 @@ HEADERS = {
     )
 }
 FALLBACK_IMG = "https://i.imgur.com/0X4vFQy.png"
+FIGHTER_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fighter_profile_cache.json")
+
+# In-memory fighter profile cache; populated from disk and updated on new fetches
+_fighter_cache: Dict[str, Any] = {}
+
+
+def _load_fighter_cache() -> None:
+    global _fighter_cache
+    if os.path.exists(FIGHTER_CACHE_PATH):
+        try:
+            with open(FIGHTER_CACHE_PATH, "r") as f:
+                _fighter_cache = json.load(f)
+        except Exception:
+            _fighter_cache = {}
+
+
+def _save_fighter_cache() -> None:
+    try:
+        with open(FIGHTER_CACHE_PATH, "w") as f:
+            json.dump(_fighter_cache, f, indent=2)
+    except Exception:
+        pass
+
+
+_load_fighter_cache()
 
 app = FastAPI(title="UFC Events API (Clean)")
 
@@ -98,13 +126,88 @@ def _slug_to_name(slug: str) -> str:
     return " ".join([p.capitalize() for p in slug.replace("_", "-").split("-") if p])
 
 
-def _parse_fighter_corner(corner) -> (str, str):
+def _fetch_fighter_profile(slug: str) -> Dict[str, Any]:
+    """Return fighter profile data (record, country, height, weight, reach, leg_reach).
+
+    Results are cached in fighter_profile_cache.json.  Returns an empty dict on
+    failure so callers always get a safe default.
+    """
+    if not slug or slug == "unknown":
+        return {}
+
+    slug = slug.lower()
+
+    # Return from cache when the cached entry already has the new-format fields
+    cached = _fighter_cache.get(slug, {})
+    if "record" in cached:
+        return {
+            "record": cached.get("record", ""),
+            "country": cached.get("country", ""),
+            "height": cached.get("height", ""),
+            "weight": cached.get("weight", ""),
+            "reach": cached.get("reach", ""),
+            "leg_reach": cached.get("leg_reach", ""),
+        }
+
+    # Fetch from UFC.com athlete page
+    url = f"{BASE_URL}/athlete/{slug}"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=15)
+        if res.status_code != 200:
+            return {}
+
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        # Record (e.g. "27-9-0 (W-L-D)")
+        record = ""
+        div_body = soup.select_one(".hero-profile__division-body")
+        if div_body:
+            m = re.match(r"(\d+-\d+-\d+)", div_body.get_text(strip=True))
+            if m:
+                record = m.group(1)
+
+        # Bio fields
+        bio: Dict[str, str] = {}
+        for field in soup.select(".c-bio__field"):
+            label_el = field.select_one(".c-bio__label")
+            val_el = field.select_one(".c-bio__text")
+            if label_el and val_el:
+                bio[label_el.get_text(strip=True)] = val_el.get_text(strip=True)
+
+        # Extract country as the last comma-separated part of Place of Birth
+        birth_place = bio.get("Place of Birth", "")
+        country = birth_place.split(",")[-1].strip() if birth_place else ""
+
+        profile: Dict[str, str] = {
+            "record": record,
+            "country": country,
+            "height": bio.get("Height", ""),
+            "weight": bio.get("Weight", ""),
+            "reach": bio.get("Reach", ""),
+            "leg_reach": bio.get("Leg reach", ""),
+        }
+
+        # Persist to cache using the new flat format
+        _fighter_cache[slug] = {
+            "fetched_at": datetime.now().isoformat(),
+            **profile,
+        }
+        _save_fighter_cache()
+
+        return profile
+
+    except Exception:
+        return {}
+
+
+def _parse_fighter_corner(corner) -> tuple:
     if not corner:
-        return "Unknown", FALLBACK_IMG
+        return "Unknown", FALLBACK_IMG, ""
 
     link = corner.select_one("a")
     img = corner.select_one("img")
 
+    slug = ""
     name = None
     if link and link.has_attr("href"):
         slug = link["href"].rstrip("/").split("/")[-1]
@@ -118,7 +221,7 @@ def _parse_fighter_corner(corner) -> (str, str):
     if not img_url:
         img_url = FALLBACK_IMG
 
-    return name or "Unknown", img_url
+    return name or "Unknown", img_url, slug
 
 
 def _get_event_details(event_url: str) -> Dict[str, Any]:
@@ -140,8 +243,8 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         red_corner = row.select_one(".c-listing-fight__corner--red")
         blue_corner = row.select_one(".c-listing-fight__corner--blue")
 
-        red_name, red_img = _parse_fighter_corner(red_corner)
-        blue_name, blue_img = _parse_fighter_corner(blue_corner)
+        red_name, red_img, red_slug = _parse_fighter_corner(red_corner)
+        blue_name, blue_img, blue_slug = _parse_fighter_corner(blue_corner)
 
         # Determine winner
         # Determine winner using UFC.com's new markup
@@ -184,6 +287,9 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         else:
             fight_title = "Unknown Fight"
 
+        red_profile = _fetch_fighter_profile(red_slug)
+        blue_profile = _fetch_fighter_profile(blue_slug)
+
         fights.append(
             {
                 "FIGHT": fight_title,
@@ -196,6 +302,8 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 "METHOD": method,
                 "ROUND": round_num,
                 "TIME": time,
+                "RED_PROFILE": red_profile,
+                "BLUE_PROFILE": blue_profile,
             }
         )
 

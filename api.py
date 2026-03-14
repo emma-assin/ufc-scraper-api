@@ -214,8 +214,9 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
 
 
 def _pick_next_event(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    now = datetime.now()
-    upcoming = [e for e in events if e["DATE"] >= now]
+    today = datetime.now().date()
+    # Treat all events scheduled for today as upcoming until they are actually completed.
+    upcoming = [e for e in events if e["DATE"].date() >= today]
     if not upcoming:
         raise HTTPException(status_code=404, detail="No upcoming events found")
     upcoming.sort(key=lambda e: e["DATE"])
@@ -223,8 +224,8 @@ def _pick_next_event(events: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _pick_last_event(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    now = datetime.now()
-    past = [e for e in events if e["DATE"] < now]
+    today = datetime.now().date()
+    past = [e for e in events if e["DATE"].date() < today]
     if not past:
         raise HTTPException(status_code=404, detail="No past events found")
     past.sort(key=lambda e: e["DATE"], reverse=True)

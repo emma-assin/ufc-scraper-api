@@ -1,1 +1,300 @@
-{"max-holloway": {"fetched_at": "2026-03-06T16:20:47.458244", "profile": {"slug": "max-holloway", "image": null, "bio": {"Status": "Active", "Place of Birth": "Waianae, United States", "Trains at": "Hawaii Elite MMA - Hawaii", "Fighting style": "Muay Thai", "Age": "34", "Height": "71.00", "Weight": "155.00", "Octagon Debut": "Feb. 4, 2012", "Reach": "69.00", "Leg reach": "42.00"}, "stats": {"Wins by Knockout": "12", "Wins by Submission": "2"}}}, "charles-oliveira": {"fetched_at": "2026-03-06T16:20:47.616602", "profile": {"slug": "charles-oliveira", "image": null, "bio": {"Status": "Active", "Place of Birth": "State of S\u00e3o Paulo, Brazil", "Trains at": "Bronx's Gold Team", "Fighting style": "Jiu-Jitsu", "Age": "36", "Height": "70.00", "Weight": "156.00", "Octagon Debut": "Aug. 1, 2010", "Reach": "74.00", "Leg reach": "41.00"}, "stats": {"Wins by Knockout": "10", "Wins by Submission": "22"}}}}
+{
+  "max-holloway": {
+    "fetched_at": "2026-03-06T16:20:47.458244",
+    "profile": {
+      "slug": "max-holloway",
+      "image": null,
+      "bio": {
+        "Status": "Active",
+        "Place of Birth": "Waianae, United States",
+        "Trains at": "Hawaii Elite MMA - Hawaii",
+        "Fighting style": "Muay Thai",
+        "Age": "34",
+        "Height": "71.00",
+        "Weight": "155.00",
+        "Octagon Debut": "Feb. 4, 2012",
+        "Reach": "69.00",
+        "Leg reach": "42.00"
+      },
+      "stats": {
+        "Wins by Knockout": "12",
+        "Wins by Submission": "2"
+      }
+    }
+  },
+  "charles-oliveira": {
+    "fetched_at": "2026-03-06T16:20:47.616602",
+    "profile": {
+      "slug": "charles-oliveira",
+      "image": null,
+      "bio": {
+        "Status": "Active",
+        "Place of Birth": "State of S\u00e3o Paulo, Brazil",
+        "Trains at": "Bronx's Gold Team",
+        "Fighting style": "Jiu-Jitsu",
+        "Age": "36",
+        "Height": "70.00",
+        "Weight": "156.00",
+        "Octagon Debut": "Aug. 1, 2010",
+        "Reach": "74.00",
+        "Leg reach": "41.00"
+      },
+      "stats": {
+        "Wins by Knockout": "10",
+        "Wins by Submission": "22"
+      }
+    }
+  },
+  "josh-emmett": {
+    "fetched_at": "2026-03-15T12:45:51.505628",
+    "record": "19-7-0",
+    "country": "United States",
+    "height": "66.50",
+    "weight": "146.00",
+    "reach": "70.00",
+    "leg_reach": "39.50"
+  },
+  "kevin-vallejos": {
+    "fetched_at": "2026-03-15T12:45:51.605367",
+    "record": "17-1-0",
+    "country": "Argentina",
+    "height": "67.00",
+    "weight": "145.00",
+    "reach": "68.00",
+    "leg_reach": "37.00"
+  },
+  "amanda-lemos": {
+    "fetched_at": "2026-03-15T12:45:51.723275",
+    "record": "15-6-1",
+    "country": "Brazil",
+    "height": "64.00",
+    "weight": "115.50",
+    "reach": "65.00",
+    "leg_reach": "36.00"
+  },
+  "gillian-robertson": {
+    "fetched_at": "2026-03-15T12:45:51.818023",
+    "record": "17-8-0",
+    "country": "Canada",
+    "height": "65.00",
+    "weight": "116.00",
+    "reach": "63.00",
+    "leg_reach": "35.50"
+  },
+  "andre-fili": {
+    "fetched_at": "2026-03-15T12:45:51.958353",
+    "record": "25-13-0",
+    "country": "United States",
+    "height": "71.00",
+    "weight": "146.00",
+    "reach": "74.00",
+    "leg_reach": "40.00"
+  },
+  "jose-delgado": {
+    "fetched_at": "2026-03-15T12:45:52.084408",
+    "record": "10-2-0",
+    "country": "United States",
+    "height": "71.00",
+    "weight": "145.00",
+    "reach": "73.00",
+    "leg_reach": "41.00"
+  },
+  "marwan-rahiki": {
+    "fetched_at": "2026-03-15T12:45:52.205404",
+    "record": "8-0-0",
+    "country": "Morocco",
+    "height": "68.00",
+    "weight": "145.00",
+    "reach": "72.00",
+    "leg_reach": "42.00"
+  },
+  "harry-hardwick": {
+    "fetched_at": "2026-03-15T12:45:52.337723",
+    "record": "13-5-1",
+    "country": "England",
+    "height": "68.00",
+    "weight": "156.00",
+    "reach": "71.00",
+    "leg_reach": "41.00"
+  },
+  "ion-cutelaba": {
+    "fetched_at": "2026-03-15T12:45:52.481315",
+    "record": "20-11-1",
+    "country": "Moldova",
+    "height": "73.00",
+    "weight": "205.00",
+    "reach": "75.00",
+    "leg_reach": "41.00"
+  },
+  "oumar-sy": {
+    "fetched_at": "2026-03-15T12:45:52.651985",
+    "record": "12-2-0",
+    "country": "France",
+    "height": "76.00",
+    "weight": "206.00",
+    "reach": "83.00",
+    "leg_reach": "44.50"
+  },
+  "charles-johnson": {
+    "fetched_at": "2026-03-15T12:45:52.762060",
+    "record": "19-8-0",
+    "country": "United States",
+    "height": "69.00",
+    "weight": "126.00",
+    "reach": "70.00",
+    "leg_reach": "40.00"
+  },
+  "bruno-silva": {
+    "fetched_at": "2026-03-15T12:45:52.905124",
+    "record": "15-8-2",
+    "country": "Brazil",
+    "height": "64.00",
+    "weight": "125.50",
+    "reach": "65.00",
+    "leg_reach": "35.00"
+  },
+  "chris-curtis": {
+    "fetched_at": "2026-03-15T12:45:53.025418",
+    "record": "32-13-0",
+    "country": "United States",
+    "height": "70.00",
+    "weight": "170.50",
+    "reach": "75.50",
+    "leg_reach": "40.00"
+  },
+  "myktybek-orolbai": {
+    "fetched_at": "2026-03-15T12:45:53.196119",
+    "record": "16-2-1",
+    "country": "Kyrgyzstan",
+    "height": "70.00",
+    "weight": "170.00",
+    "reach": "74.00",
+    "leg_reach": "39.50"
+  },
+  "vitor-petrino": {
+    "fetched_at": "2026-03-15T12:45:53.303616",
+    "record": "14-2-0",
+    "country": "Brazil",
+    "height": "74.00",
+    "weight": "250.00",
+    "reach": "77.50",
+    "leg_reach": "42.50"
+  },
+  "steven-asplund": {
+    "fetched_at": "2026-03-15T12:45:53.452521",
+    "record": "7-2-0",
+    "country": "United States",
+    "height": "77.00",
+    "weight": "261.00",
+    "reach": "78.00",
+    "leg_reach": "47.00"
+  },
+  "elijah-smith": {
+    "fetched_at": "2026-03-15T12:45:53.606262",
+    "record": "10-1-0",
+    "country": "United States",
+    "height": "69.00",
+    "weight": "136.00",
+    "reach": "71.00",
+    "leg_reach": "40.00"
+  },
+  "suyoung-yu": {
+    "fetched_at": "2026-03-15T12:45:53.741429",
+    "record": "16-4-0",
+    "country": "South Korea",
+    "height": "66.00",
+    "weight": "135.50",
+    "reach": "65.00",
+    "leg_reach": "36.00"
+  },
+  "bolaji-oki": {
+    "fetched_at": "2026-03-15T12:45:53.911223",
+    "record": "10-4-0",
+    "country": "Belgium",
+    "height": "70.00",
+    "weight": "156.00",
+    "reach": "73.00",
+    "leg_reach": "41.00"
+  },
+  "manoel-sousa": {
+    "fetched_at": "2026-03-15T12:45:54.027847",
+    "record": "14-1-0",
+    "country": "Brazil",
+    "height": "69.00",
+    "weight": "155.50",
+    "reach": "70.00",
+    "leg_reach": "38.00"
+  },
+  "brad-tavares": {
+    "fetched_at": "2026-03-15T12:45:54.182975",
+    "record": "21-13-0",
+    "country": "United States",
+    "height": "73.00",
+    "weight": "186.00",
+    "reach": "74.00",
+    "leg_reach": "43.00"
+  },
+  "eryk-anders": {
+    "fetched_at": "2026-03-15T12:45:54.450222",
+    "record": "18-9-0",
+    "country": "United States",
+    "height": "73.00",
+    "weight": "186.00",
+    "reach": "75.00",
+    "leg_reach": "43.50"
+  },
+  "bia-mesquita": {
+    "fetched_at": "2026-03-15T12:45:54.633679",
+    "record": "6-0-0",
+    "country": "Brazil",
+    "height": "66.00",
+    "weight": "135.00",
+    "reach": "",
+    "leg_reach": ""
+  },
+  "montserrat-rendon": {
+    "fetched_at": "2026-03-15T12:45:55.636218",
+    "record": "7-2-0",
+    "country": "Mexico",
+    "height": "68.00",
+    "weight": "136.00",
+    "reach": "68.00",
+    "leg_reach": "41.00"
+  },
+  "luan-lacerda": {
+    "fetched_at": "2026-03-15T12:45:56.523634",
+    "record": "13-4-0",
+    "country": "Brazil",
+    "height": "67.00",
+    "weight": "136.00",
+    "reach": "71.50",
+    "leg_reach": "38.50"
+  },
+  "hecher-sosa": {
+    "fetched_at": "2026-03-15T12:45:56.664396",
+    "record": "15-1-0",
+    "country": "Canary Islands",
+    "height": "69.00",
+    "weight": "136.00",
+    "reach": "70.00",
+    "leg_reach": "40.50"
+  },
+  "piera-rodriguez": {
+    "fetched_at": "2026-03-15T12:45:58.640403",
+    "record": "12-2-0",
+    "country": "Venezuela",
+    "height": "63.00",
+    "weight": "116.00",
+    "reach": "63.50",
+    "leg_reach": "36.00"
+  },
+  "sam-hughes": {
+    "fetched_at": "2026-03-15T12:45:58.795821",
+    "record": "11-7-0",
+    "country": "United States",
+    "height": "65.00",
+    "weight": "116.00",
+    "reach": "64.00",
+    "leg_reach": "36.00"
+  }
+}

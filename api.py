@@ -200,6 +200,46 @@ def _fetch_fighter_profile(slug: str) -> Dict[str, Any]:
         return {}
 
 
+def _fetch_event_results(fmid: str) -> Dict[int, Dict[str, Any]]:
+    """
+    Fetch fight results from the UFC CloudFront stats API.
+    Returns a dict keyed by FightId (int) with winner_corner, method, round, time.
+    """
+    if not fmid:
+        return {}
+    url = f"https://d29dxerjsp82wz.cloudfront.net/api/v3/event/live/{fmid}.json"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=15)
+        if res.status_code != 200:
+            return {}
+        data = res.json()
+        results: Dict[int, Dict[str, Any]] = {}
+        for fight in data.get("LiveEventDetail", {}).get("FightCard", []):
+            fight_id = fight.get("FightId")
+            if not fight_id:
+                continue
+            result = fight.get("Result") or {}
+            winner_corner = None
+            winner_name = None
+            for fighter in fight.get("Fighters", []):
+                outcome = (fighter.get("Outcome") or {}).get("Outcome", "")
+                if outcome == "Win":
+                    winner_corner = fighter.get("Corner")  # "Red" or "Blue"
+                    winner_name = (
+                        f"{fighter['Name']['FirstName']} {fighter['Name']['LastName']}"
+                    )
+            results[fight_id] = {
+                "winner_corner": winner_corner,
+                "winner_name": winner_name,
+                "method": result.get("Method") or "",
+                "round": str(result["EndingRound"]) if result.get("EndingRound") else "",
+                "time": result.get("EndingTime") or "",
+            }
+        return results
+    except Exception:
+        return {}
+
+
 def _parse_fighter_corner(corner) -> tuple:
     if not corner:
         return "Unknown", FALLBACK_IMG, ""
@@ -227,6 +267,22 @@ def _parse_fighter_corner(corner) -> tuple:
 def _get_event_details(event_url: str) -> Dict[str, Any]:
     soup = _get_soup(event_url)
 
+    # Extract event_fmid from drupalSettings JSON embedded in the page
+    fmid = None
+    for script in soup.find_all("script", type="application/json"):
+        text = script.string or ""
+        if "eventLiveStats" in text:
+            try:
+                settings = json.loads(text)
+                fmid = settings.get("eventLiveStats", {}).get("event_fmid")
+            except Exception:
+                pass
+            if fmid:
+                break
+
+    # Fetch fight results (winner, method, round, time) from the CloudFront stats API
+    api_results = _fetch_event_results(fmid) if fmid else {}
+
     # Event hero image
     hero_img = None
     hero = soup.select_one(".c-hero__image img") or soup.select_one(".c-hero--full img")
@@ -246,30 +302,23 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         red_name, red_img, red_slug = _parse_fighter_corner(red_corner)
         blue_name, blue_img, blue_slug = _parse_fighter_corner(blue_corner)
 
-        # Determine winner
-        # Determine winner using UFC.com's new markup
+        # Look up fight result from the stats API via the data-time-fid attribute
+        time_div = row.select_one("[data-time-fid]")
+        fight_id = int(time_div["data-time-fid"]) if time_div else None
+        api_res = api_results.get(fight_id, {}) if fight_id else {}
+
+        # Determine winner from API result
         winner = None
-
-        outcome_red = row.select_one(".c-listing-fight__corner--red .c-listing-fight__outcome--win")
-        outcome_blue = row.select_one(".c-listing-fight__corner--blue .c-listing-fight__outcome--win")
-
-        if outcome_red:
+        winner_corner = api_res.get("winner_corner")  # "Red" or "Blue"
+        if winner_corner == "Red":
             winner = red_name
-        elif outcome_blue:
+        elif winner_corner == "Blue":
             winner = blue_name
 
-        # Method / Round / Time
-        method = round_num = time = ""
-        result_box = row.select_one(".c-listing-fight__result-text")
-        if result_box:
-            spans = [s.get_text(strip=True) for s in result_box.select("span")]
-            for s in spans:
-                if "Round" in s:
-                    round_num = s.replace("Round:", "").strip()
-                elif "Time" in s:
-                    time = s.replace("Time:", "").strip()
-                else:
-                    method = s  # KO/TKO, SUB, DEC, etc.
+        # Method / Round / Time from API result
+        method = api_res.get("method", "")
+        round_num = api_res.get("round", "")
+        time = api_res.get("time", "")
 
         if i == 0:
             main_red_name, main_red_img = red_name, red_img

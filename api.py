@@ -62,6 +62,27 @@ def _get_soup(url: str) -> BeautifulSoup:
     return BeautifulSoup(res.text, "html.parser")
 
 
+def _format_event_location(loc_el) -> str:
+    if not loc_el:
+        return ""
+
+    venue_el = loc_el.select_one(".field--name-taxonomy-term-title")
+    locality_el = loc_el.select_one(".locality")
+    country_el = loc_el.select_one(".country")
+
+    parts = [
+        venue_el.get_text(" ", strip=True) if venue_el else "",
+        locality_el.get_text(" ", strip=True) if locality_el else "",
+        country_el.get_text(" ", strip=True) if country_el else "",
+    ]
+    parts = [p for p in parts if p]
+    if parts:
+        return ", ".join(parts)
+
+    # Fallback for unexpected markup: preserve spacing between text nodes.
+    return re.sub(r"\s+", " ", loc_el.get_text(" ", strip=True)).strip()
+
+
 def _parse_events() -> List[Dict[str, Any]]:
     soup = _get_soup(EVENTS_URL)
     events: List[Dict[str, Any]] = []
@@ -79,7 +100,7 @@ def _parse_events() -> List[Dict[str, Any]]:
         loc_el = card.select_one(".c-card-event--result__location")
 
         date_text = date_el.get("data-main-card", "") if date_el else ""
-        loc_text = loc_el.get_text(strip=True) if loc_el else ""
+        loc_text = _format_event_location(loc_el)
 
         # data-main-card-timestamp is a Unix timestamp (UTC) provided directly by UFC.com
         timestamp: Optional[int] = None

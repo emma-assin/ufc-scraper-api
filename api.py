@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import json
 import os
@@ -62,22 +62,6 @@ def _get_soup(url: str) -> BeautifulSoup:
     return BeautifulSoup(res.text, "html.parser")
 
 
-def _parse_event_date(text: str) -> Optional[datetime]:
-    if not text:
-        return None
-    # UFC.com dates are like "Sat, Mar 7 / 10:00 PM EST"
-    # We only care about the date part before the slash
-    try:
-        date_part = text.split("/")[0].strip()
-        # Remove weekday if present
-        if "," in date_part:
-            _, rest = date_part.split(",", 1)
-            date_part = rest.strip()
-        return datetime.strptime(date_part, "%b %d")
-    except Exception:
-        return None
-
-
 def _parse_events() -> List[Dict[str, Any]]:
     soup = _get_soup(EVENTS_URL)
     events: List[Dict[str, Any]] = []
@@ -94,16 +78,21 @@ def _parse_events() -> List[Dict[str, Any]]:
         date_el = card.select_one(".c-card-event--result__date")
         loc_el = card.select_one(".c-card-event--result__location")
 
-        date_text = date_el.get_text(strip=True) if date_el else ""
+        date_text = date_el.get("data-main-card", "") if date_el else ""
         loc_text = loc_el.get_text(strip=True) if loc_el else ""
 
-        parsed_date = _parse_event_date(date_text)
-        # Attach year heuristically: UFC.com omits year sometimes; assume current or previous
-        if parsed_date:
-            now = datetime.now()
-            parsed_date = parsed_date.replace(year=now.year)
-            # If this date is in the future but visually looks like past, or vice versa,
-            # you can adjust, but for now we keep it simple.
+        # data-main-card-timestamp is a Unix timestamp (UTC) provided directly by UFC.com
+        timestamp: Optional[int] = None
+        parsed_date: Optional[datetime] = None
+        if date_el and date_el.get("data-main-card-timestamp"):
+            try:
+                timestamp = int(date_el["data-main-card-timestamp"])
+                parsed_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            except (ValueError, OSError):
+                pass
+
+        if parsed_date is None:
+            continue
 
         events.append(
             {
@@ -112,11 +101,10 @@ def _parse_events() -> List[Dict[str, Any]]:
                 "DATE_TEXT": date_text,
                 "LOCATION": loc_text,
                 "DATE": parsed_date,
+                "TIMESTAMP": timestamp,
             }
         )
 
-    # Filter out events with no date
-    events = [e for e in events if e["DATE"] is not None]
     return events
 
 
@@ -398,6 +386,7 @@ def get_next_event():
     return {
         "EVENT": next_event["EVENT"],
         "DATE": next_event["DATE_TEXT"],
+        "TIMESTAMP": next_event["TIMESTAMP"],
         "LOCATION": next_event["LOCATION"],
         "URL": next_event["URL"],
         "IMAGE": details["IMAGE"],
@@ -415,6 +404,7 @@ def get_last_event():
     return {
         "EVENT": last_event["EVENT"],
         "DATE": last_event["DATE_TEXT"],
+        "TIMESTAMP": last_event["TIMESTAMP"],
         "LOCATION": last_event["LOCATION"],
         "URL": last_event["URL"],
         "IMAGE": details["IMAGE"],

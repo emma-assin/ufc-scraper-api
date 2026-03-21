@@ -363,12 +363,8 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 break
 
     prelims_timestamp = None
-    main_card_timestamp = None
-    if event_date:
-        if prelims_time:
-            prelims_timestamp = parse_time_to_utc(event_date, prelims_time)
-        if main_card_time:
-            main_card_timestamp = parse_time_to_utc(event_date, main_card_time)
+    if event_date and prelims_time:
+        prelims_timestamp = parse_time_to_utc(event_date, prelims_time)
 
     # Determine which section each fight belongs to
     # UFC.com usually lists prelims first, then main card, but there may be a heading or marker
@@ -425,14 +421,6 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         red_profile = _fetch_fighter_profile(red_slug)
         blue_profile = _fetch_fighter_profile(blue_slug)
 
-        # Assign scheduled_start_time based on section
-        if section == "main card" and main_card_timestamp:
-            scheduled_start_time = main_card_timestamp
-        elif section == "prelims" and prelims_timestamp:
-            scheduled_start_time = prelims_timestamp
-        else:
-            scheduled_start_time = None
-
         fights.append(
             {
                 "FIGHT": fight_title,
@@ -447,7 +435,6 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 "TIME": time,
                 "RED_PROFILE": red_profile,
                 "BLUE_PROFILE": blue_profile,
-                "SCHEDULED_START_TIME": scheduled_start_time,
                 "CARD_SECTION": section,
             }
         )
@@ -462,6 +449,7 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     return {
         "IMAGE": hero_img or FALLBACK_IMG,
         "MAIN_EVENT": main_event,
+        "PRELIMS_START_TIME": prelims_timestamp,
         "FIGHTS": fights,
     }
 

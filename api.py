@@ -366,17 +366,32 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     if event_date and prelims_time:
         prelims_timestamp = parse_time_to_utc(event_date, prelims_time)
 
-    # Determine which section each fight belongs to
-    # UFC.com usually lists prelims first, then main card, but there may be a heading or marker
-    # We'll use a simple heuristic: if a heading with "main card" appears, all subsequent fights are main card
-    section = "prelims"
-    for i, row in enumerate(fight_rows):
-        # Check for section heading before this fight
+    # Debug: print extracted times and headings
+    print(f"[DEBUG] Extracted prelims_time: {prelims_time}")
+    print(f"[DEBUG] Extracted event_date: {event_date}")
+    headings = [h.get_text(strip=True) for h in soup.find_all(['h2', 'h3'])]
+    print(f"[DEBUG] Headings found: {headings}")
+
+    # Try to find the index where the main card starts
+    main_card_start_idx = None
+    for idx, row in enumerate(fight_rows):
         prev = row.find_previous_sibling()
-        while prev and prev.name != "h2":
+        while prev and prev.name not in ["h2", "h3"]:
             prev = prev.find_previous_sibling()
         if prev and prev.get_text(strip=True).lower().startswith("main card"):
+            main_card_start_idx = idx
+            break
+
+    # If no heading found, default to last 5 fights as main card (common UFC pattern)
+    if main_card_start_idx is None and len(fight_rows) >= 6:
+        main_card_start_idx = len(fight_rows) - 5
+        print(f"[DEBUG] No main card heading found, defaulting last 5 fights as main card.")
+
+    for i, row in enumerate(fight_rows):
+        if main_card_start_idx is not None and i >= main_card_start_idx:
             section = "main card"
+        else:
+            section = "prelims"
 
         red_corner = row.select_one(".c-listing-fight__corner--red")
         blue_corner = row.select_one(".c-listing-fight__corner--blue")

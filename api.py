@@ -372,26 +372,20 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     headings = [h.get_text(strip=True) for h in soup.find_all(['h2', 'h3'])]
     print(f"[DEBUG] Headings found: {headings}")
 
-    # Try to find the index where the main card starts
-    main_card_start_idx = None
-    for idx, row in enumerate(fight_rows):
-        prev = row.find_previous_sibling()
-        while prev and prev.name not in ["h2", "h3"]:
-            prev = prev.find_previous_sibling()
-        if prev and prev.get_text(strip=True).lower().startswith("main card"):
-            main_card_start_idx = idx
-            break
-
-    # If no heading found, default to last 5 fights as main card (common UFC pattern)
-    if main_card_start_idx is None and len(fight_rows) >= 6:
-        main_card_start_idx = len(fight_rows) - 5
-        print(f"[DEBUG] No main card heading found, defaulting last 5 fights as main card.")
-
+    # Assign section based on the most recent heading above each fight
     for i, row in enumerate(fight_rows):
-        if main_card_start_idx is not None and i >= main_card_start_idx:
-            section = "main card"
-        else:
-            section = "prelims"
+        # Walk backwards to find the most recent h2/h3 heading
+        section = "prelims"  # default
+        prev = row
+        while prev:
+            prev = prev.find_previous_sibling()
+            if prev and prev.name in ["h2", "h3"]:
+                heading = prev.get_text(strip=True).lower()
+                if "main card" in heading:
+                    section = "main card"
+                elif "prelim" in heading:
+                    section = "prelims"
+                break
 
         red_corner = row.select_one(".c-listing-fight__corner--red")
         blue_corner = row.select_one(".c-listing-fight__corner--blue")

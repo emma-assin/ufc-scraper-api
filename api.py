@@ -304,7 +304,73 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     main_red_name = main_blue_name = None
     main_red_img = main_blue_img = None
 
+    # Parse prelims and main card start times (e.g., "Prelims 1:00 PM EDT", "Main Card 4:00 PM EDT")
+    prelims_time = None
+    main_card_time = None
+    for howto in soup.select(".how-to-watch__list-item"):
+        text = howto.get_text(" ", strip=True).lower()
+        if "prelim" in text:
+            prelims_time = text
+        if "main card" in text:
+            main_card_time = text
+
+    # Fallback: try to find times in the text blocks
+    if not prelims_time or not main_card_time:
+        for t in soup.stripped_strings:
+            t_low = t.lower()
+            if not prelims_time and "prelim" in t_low and any(c.isdigit() for c in t_low):
+                prelims_time = t
+            if not main_card_time and "main card" in t_low and any(c.isdigit() for c in t_low):
+                main_card_time = t
+
+    # Try to extract a datetime string (e.g., "1:00 PM EDT") and parse to UTC timestamp
+    def parse_time_to_utc(event_date, time_str):
+        # event_date: e.g., "Sat, Mar 21"
+        # time_str: e.g., "1:00 PM EDT"
+        try:
+            # Remove card label
+            time_part = time_str.split(" ")[-3:]
+            time_part = " ".join(time_part)
+            # Compose full string
+            full_str = f"{event_date} {time_part} 2026"
+            # Parse with datetime
+            dt = datetime.strptime(full_str, "%a, %b %d %I:%M %p %Z %Y")
+            return int(dt.replace(tzinfo=timezone.utc).timestamp())
+        except Exception:
+            return None
+
+    # Get event date from the page (e.g., "Sat, Mar 21")
+    event_date = None
+    date_el = soup.select_one(".c-hero__headline-suffix .c-hero__headline-suffix__date")
+    if date_el:
+        event_date = date_el.get_text(strip=True)
+    # Fallback: try to find in text
+    if not event_date:
+        for t in soup.stripped_strings:
+            if "," in t and any(month in t for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]):
+                event_date = t.strip()
+                break
+
+    prelims_timestamp = None
+    main_card_timestamp = None
+    if event_date:
+        if prelims_time:
+            prelims_timestamp = parse_time_to_utc(event_date, prelims_time)
+        if main_card_time:
+            main_card_timestamp = parse_time_to_utc(event_date, main_card_time)
+
+    # Determine which section each fight belongs to
+    # UFC.com usually lists prelims first, then main card, but there may be a heading or marker
+    # We'll use a simple heuristic: if a heading with "main card" appears, all subsequent fights are main card
+    section = "prelims"
     for i, row in enumerate(fight_rows):
+        # Check for section heading before this fight
+        prev = row.find_previous_sibling()
+        while prev and prev.name != "h2":
+            prev = prev.find_previous_sibling()
+        if prev and prev.get_text(strip=True).lower().startswith("main card"):
+            section = "main card"
+
         red_corner = row.select_one(".c-listing-fight__corner--red")
         blue_corner = row.select_one(".c-listing-fight__corner--blue")
 
@@ -348,6 +414,14 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
         red_profile = _fetch_fighter_profile(red_slug)
         blue_profile = _fetch_fighter_profile(blue_slug)
 
+        # Assign scheduled_start_time based on section
+        if section == "main card" and main_card_timestamp:
+            scheduled_start_time = main_card_timestamp
+        elif section == "prelims" and prelims_timestamp:
+            scheduled_start_time = prelims_timestamp
+        else:
+            scheduled_start_time = None
+
         fights.append(
             {
                 "FIGHT": fight_title,
@@ -362,6 +436,8 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 "TIME": time,
                 "RED_PROFILE": red_profile,
                 "BLUE_PROFILE": blue_profile,
+                "SCHEDULED_START_TIME": scheduled_start_time,
+                "CARD_SECTION": section,
             }
         )
 

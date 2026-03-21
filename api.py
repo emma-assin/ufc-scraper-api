@@ -324,19 +324,30 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
                 main_card_time = t
 
     # Try to extract a datetime string (e.g., "1:00 PM EDT") and parse to UTC timestamp
+    from dateutil import parser as dateparser
+    import pytz
+    import re
     def parse_time_to_utc(event_date, time_str):
         # event_date: e.g., "Sat, Mar 21"
         # time_str: e.g., "1:00 PM EDT"
         try:
-            # Remove card label
-            time_part = time_str.split(" ")[-3:]
-            time_part = " ".join(time_part)
+            # Extract time and timezone using regex
+            m = re.search(r'(\d{1,2}:\d{2} ?[AP]M ?[A-Z]{2,4})', time_str, re.IGNORECASE)
+            if not m:
+                print(f"[DEBUG] Could not extract time from: {time_str}")
+                return None
+            time_part = m.group(1)
             # Compose full string
             full_str = f"{event_date} {time_part} 2026"
-            # Parse with datetime
-            dt = datetime.strptime(full_str, "%a, %b %d %I:%M %p %Z %Y")
-            return int(dt.replace(tzinfo=timezone.utc).timestamp())
-        except Exception:
+            print(f"[DEBUG] Parsing datetime string: {full_str}")
+            dt = dateparser.parse(full_str, fuzzy=True)
+            # Convert to UTC
+            if dt.tzinfo is None:
+                dt = pytz.timezone('US/Eastern').localize(dt)
+            dt_utc = dt.astimezone(pytz.utc)
+            return int(dt_utc.timestamp())
+        except Exception as e:
+            print(f"[DEBUG] Failed to parse time: {event_date}, {time_str}, error: {e}")
             return None
 
     # Get event date from the page (e.g., "Sat, Mar 21")

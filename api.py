@@ -298,72 +298,90 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     if hero and hero.get("src"):
         hero_img = hero["src"]
 
-    fight_rows = soup.select(".c-listing-fight__content")
-    fights: List[Dict[str, Any]] = []
 
+    # --- Card type detection ---
+    # UFC.com event pages group fights by card type using headers (e.g., Main Card, Prelims, Early Prelims)
+    # We'll walk the DOM and assign card type to each fight
+    fights: List[Dict[str, Any]] = []
     main_red_name = main_blue_name = None
     main_red_img = main_blue_img = None
+    current_card_type = None
+    # Find all elements that are either section headers or fight rows
+    for elem in soup.find_all(["h2", "h3", "div"]):
+        # Section header
+        if elem.name in ["h2", "h3"]:
+            text = elem.get_text(strip=True).lower()
+            if "main card" in text:
+                current_card_type = "Main Card"
+            elif "prelim" in text and "early" not in text:
+                current_card_type = "Prelims"
+            elif "early prelim" in text:
+                current_card_type = "Early Prelims"
+            else:
+                continue
+        # Fight row
+        elif elem.name == "div" and "c-listing-fight__content" in elem.get("class", []):
+            row = elem
+            red_corner = row.select_one(".c-listing-fight__corner--red")
+            blue_corner = row.select_one(".c-listing-fight__corner--blue")
 
-    for i, row in enumerate(fight_rows):
-        red_corner = row.select_one(".c-listing-fight__corner--red")
-        blue_corner = row.select_one(".c-listing-fight__corner--blue")
+            red_name, red_img, red_slug = _parse_fighter_corner(red_corner)
+            blue_name, blue_img, blue_slug = _parse_fighter_corner(blue_corner)
 
-        red_name, red_img, red_slug = _parse_fighter_corner(red_corner)
-        blue_name, blue_img, blue_slug = _parse_fighter_corner(blue_corner)
+            # Look up fight result from the stats API via the data-time-fid attribute
+            time_div = row.select_one("[data-time-fid]")
+            fight_id = int(time_div["data-time-fid"]) if time_div else None
+            api_res = api_results.get(fight_id, {}) if fight_id else {}
 
-        # Look up fight result from the stats API via the data-time-fid attribute
-        time_div = row.select_one("[data-time-fid]")
-        fight_id = int(time_div["data-time-fid"]) if time_div else None
-        api_res = api_results.get(fight_id, {}) if fight_id else {}
+            # Determine winner from API result
+            winner = None
+            winner_corner = api_res.get("winner_corner")  # "Red" or "Blue"
+            if winner_corner == "Red":
+                winner = red_name
+            elif winner_corner == "Blue":
+                winner = blue_name
 
-        # Determine winner from API result
-        winner = None
-        winner_corner = api_res.get("winner_corner")  # "Red" or "Blue"
-        if winner_corner == "Red":
-            winner = red_name
-        elif winner_corner == "Blue":
-            winner = blue_name
+            # Method / Round / Time from API result
+            method = api_res.get("method", "")
+            round_num = api_res.get("round", "")
+            time = api_res.get("time", "")
 
-        # Method / Round / Time from API result
-        method = api_res.get("method", "")
-        round_num = api_res.get("round", "")
-        time = api_res.get("time", "")
+            if main_red_name is None and main_blue_name is None:
+                main_red_name, main_red_img = red_name, red_img
+                main_blue_name, main_blue_img = blue_name, blue_img
 
-        if i == 0:
-            main_red_name, main_red_img = red_name, red_img
-            main_blue_name, main_blue_img = blue_name, blue_img
+            weight = row.select_one(".c-listing-fight__class-text")
+            weight_text = weight.get_text(strip=True) if weight else ""
 
-        weight = row.select_one(".c-listing-fight__class-text")
-        weight_text = weight.get_text(strip=True) if weight else ""
+            if red_name != "Unknown" and blue_name != "Unknown":
+                fight_title = f"{red_name} vs {blue_name}"
+            elif red_name != "Unknown":
+                fight_title = red_name
+            elif blue_name != "Unknown":
+                fight_title = blue_name
+            else:
+                fight_title = "Unknown Fight"
 
-        if red_name != "Unknown" and blue_name != "Unknown":
-            fight_title = f"{red_name} vs {blue_name}"
-        elif red_name != "Unknown":
-            fight_title = red_name
-        elif blue_name != "Unknown":
-            fight_title = blue_name
-        else:
-            fight_title = "Unknown Fight"
+            red_profile = _fetch_fighter_profile(red_slug)
+            blue_profile = _fetch_fighter_profile(blue_slug)
 
-        red_profile = _fetch_fighter_profile(red_slug)
-        blue_profile = _fetch_fighter_profile(blue_slug)
-
-        fights.append(
-            {
-                "FIGHT": fight_title,
-                "WEIGHT_CLASS": weight_text,
-                "RED_NAME": red_name,
-                "BLUE_NAME": blue_name,
-                "RED_IMG": red_img,
-                "BLUE_IMG": blue_img,
-                "WINNER": winner,
-                "METHOD": method,
-                "ROUND": round_num,
-                "TIME": time,
-                "RED_PROFILE": red_profile,
-                "BLUE_PROFILE": blue_profile,
-            }
-        )
+            fights.append(
+                {
+                    "FIGHT": fight_title,
+                    "WEIGHT_CLASS": weight_text,
+                    "RED_NAME": red_name,
+                    "BLUE_NAME": blue_name,
+                    "RED_IMG": red_img,
+                    "BLUE_IMG": blue_img,
+                    "WINNER": winner,
+                    "METHOD": method,
+                    "ROUND": round_num,
+                    "TIME": time,
+                    "RED_PROFILE": red_profile,
+                    "BLUE_PROFILE": blue_profile,
+                    "CARD_TYPE": current_card_type or "Unknown",
+                }
+            )
 
     main_event = {
         "A": main_red_name or "Unknown",

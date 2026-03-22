@@ -102,15 +102,22 @@ def _parse_events() -> List[Dict[str, Any]]:
         date_text = date_el.get("data-main-card", "") if date_el else ""
         loc_text = _format_event_location(loc_el)
 
-        # data-main-card-timestamp is a Unix timestamp (UTC) provided directly by UFC.com
+        # data-main-card-timestamp and data-prelims-card-timestamp are Unix timestamps (UTC) provided directly by UFC.com
         timestamp: Optional[int] = None
+        prelims_timestamp: Optional[int] = None
         parsed_date: Optional[datetime] = None
-        if date_el and date_el.get("data-main-card-timestamp"):
-            try:
-                timestamp = int(date_el["data-main-card-timestamp"])
-                parsed_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            except (ValueError, OSError):
-                pass
+        if date_el:
+            if date_el.get("data-main-card-timestamp"):
+                try:
+                    timestamp = int(date_el["data-main-card-timestamp"])
+                    parsed_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                except (ValueError, OSError):
+                    pass
+            if date_el.get("data-prelims-card-timestamp"):
+                try:
+                    prelims_timestamp = int(date_el["data-prelims-card-timestamp"])
+                except (ValueError, OSError):
+                    prelims_timestamp = None
 
         if parsed_date is None:
             continue
@@ -123,6 +130,7 @@ def _parse_events() -> List[Dict[str, Any]]:
                 "LOCATION": loc_text,
                 "DATE": parsed_date,
                 "TIMESTAMP": timestamp,
+                "PRELIMS_TIMESTAMP": prelims_timestamp,
             }
         )
 
@@ -426,6 +434,7 @@ def get_next_event():
         "EVENT": next_event["EVENT"],
         "DATE": next_event["DATE_TEXT"],
         "TIMESTAMP": next_event["TIMESTAMP"],
+        "PRELIMS_TIMESTAMP": next_event.get("PRELIMS_TIMESTAMP"),
         "LOCATION": next_event["LOCATION"],
         "URL": next_event["URL"],
         "IMAGE": details["IMAGE"],
@@ -444,6 +453,7 @@ def get_last_event():
         "EVENT": last_event["EVENT"],
         "DATE": last_event["DATE_TEXT"],
         "TIMESTAMP": last_event["TIMESTAMP"],
+        "PRELIMS_TIMESTAMP": last_event.get("PRELIMS_TIMESTAMP"),
         "LOCATION": last_event["LOCATION"],
         "URL": last_event["URL"],
         "IMAGE": details["IMAGE"],

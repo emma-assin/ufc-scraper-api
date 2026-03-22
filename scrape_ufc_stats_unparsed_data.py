@@ -30,10 +30,18 @@ config = yaml.safe_load(open('scrape_ufc_stats_config.yaml'))
 print('### Checking for unparsed events... ###')
 print('\n')
 
+
 # read existing event details
-parsed_event_details_df = pd.read_csv(config['event_details_file_name'])
+import os
+if os.path.exists(config['event_details_file_name']):
+    parsed_event_details_df = pd.read_csv(config['event_details_file_name'])
+else:
+    parsed_event_details_df = pd.DataFrame(columns=['EVENT', 'URL', 'DATE', 'LOCATION'])
 # read existing fight details to verify completeness
-parsed_fight_details_df = pd.read_csv(config['fight_details_file_name'])
+if os.path.exists(config['fight_details_file_name']):
+    parsed_fight_details_df = pd.read_csv(config['fight_details_file_name'])
+else:
+    parsed_fight_details_df = pd.DataFrame(columns=config['fight_details_column_names'])
 
 # get list of events that have been parsed (have event details)
 list_of_events_with_event_details = list(parsed_event_details_df['EVENT'])
@@ -57,6 +65,9 @@ list_of_incomplete_events = [event for event in list_of_events_with_event_detail
 
 # combine both lists to get all events that need parsing
 list_of_unparsed_events = list_of_new_events + list_of_incomplete_events
+# Only parse the 3 most recent unparsed events
+N = 3
+list_of_unparsed_events = list_of_unparsed_events[::-1][:N]
 
 # check if there are any unparsed events
 unparsed_events = False

@@ -304,8 +304,79 @@ def _get_event_details(event_url: str) -> Dict[str, Any]:
     main_red_name = main_blue_name = None
     main_red_img = main_blue_img = None
 
-    # ...existing code...
-    # All logic for main card/prelims assignment has been removed as requested.
+    for i, row in enumerate(fight_rows):
+        red_corner = row.select_one(".c-listing-fight__corner--red")
+        blue_corner = row.select_one(".c-listing-fight__corner--blue")
+
+        red_name, red_img, red_slug = _parse_fighter_corner(red_corner)
+        blue_name, blue_img, blue_slug = _parse_fighter_corner(blue_corner)
+
+        # Look up fight result from the stats API via the data-time-fid attribute
+        time_div = row.select_one("[data-time-fid]")
+        fight_id = int(time_div["data-time-fid"]) if time_div else None
+        api_res = api_results.get(fight_id, {}) if fight_id else {}
+
+        # Determine winner from API result
+        winner = None
+        winner_corner = api_res.get("winner_corner")  # "Red" or "Blue"
+        if winner_corner == "Red":
+            winner = red_name
+        elif winner_corner == "Blue":
+            winner = blue_name
+
+        # Method / Round / Time from API result
+        method = api_res.get("method", "")
+        round_num = api_res.get("round", "")
+        time = api_res.get("time", "")
+
+        if i == 0:
+            main_red_name, main_red_img = red_name, red_img
+            main_blue_name, main_blue_img = blue_name, blue_img
+
+        weight = row.select_one(".c-listing-fight__class-text")
+        weight_text = weight.get_text(strip=True) if weight else ""
+
+        if red_name != "Unknown" and blue_name != "Unknown":
+            fight_title = f"{red_name} vs {blue_name}"
+        elif red_name != "Unknown":
+            fight_title = red_name
+        elif blue_name != "Unknown":
+            fight_title = blue_name
+        else:
+            fight_title = "Unknown Fight"
+
+        red_profile = _fetch_fighter_profile(red_slug)
+        blue_profile = _fetch_fighter_profile(blue_slug)
+
+        fights.append(
+            {
+                "FIGHT": fight_title,
+                "WEIGHT_CLASS": weight_text,
+                "RED_NAME": red_name,
+                "BLUE_NAME": blue_name,
+                "RED_IMG": red_img,
+                "BLUE_IMG": blue_img,
+                "WINNER": winner,
+                "METHOD": method,
+                "ROUND": round_num,
+                "TIME": time,
+                "RED_PROFILE": red_profile,
+                "BLUE_PROFILE": blue_profile,
+            }
+        )
+
+    main_event = {
+        "A": main_red_name or "Unknown",
+        "B": main_blue_name or "Unknown",
+        "A_IMG": main_red_img or FALLBACK_IMG,
+        "B_IMG": main_blue_img or FALLBACK_IMG,
+    }
+
+    return {
+        "IMAGE": hero_img or FALLBACK_IMG,
+        "MAIN_EVENT": main_event,
+        "FIGHTS": fights,
+    }
 
 
 def _pick_next_event(events: List[Dict[str, Any]]) -> Dict[str, Any]:

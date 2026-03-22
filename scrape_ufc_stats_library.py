@@ -107,34 +107,44 @@ def parse_fight_details(soup: BeautifulSoup) -> pd.DataFrame:
     a df of fight details
     '''
     
-    # create empty list to store fight urls
+
+    # We'll parse the fight card sections and associate each fight with its card type (e.g., Main Card, Prelims)
     fight_urls = []
-    # extract all fight detail urls for further parsing
-    for tag in soup.find_all('tr', class_='b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click'):
-        fight_urls.append(tag['data-link'])
-
-    # create an empty list to store fighters in an event
-    fighters_in_event = []
-    # extract all fighters in an event
-    for tag in soup.find_all('a', class_='b-link b-link_style_black'):
-        fighters_in_event.append(tag.text.strip())
-
-    # create empty list to store fights
     fights_in_event = []
-    # loop through each fight url
-    for url in fight_urls:
-        # get soup from url
-        soup_fight = get_soup(url)
-        # create empty list to store fighters' names
-        fighters_names = []
-        # parse fighters' name from soup
-        for tag in soup_fight.find_all('a', class_='b-link b-fight-details__person-link'):
-            fighters_names.append(tag.text.strip())
-        # join fighters name into one, e.g. fighter_a vs. fighter_b
-        fights_in_event.append(' vs. '.join(fighters_names))
-    
+    card_types = []
+
+    # UFC event pages typically have section headers for each card type (e.g., h2 or h3 tags with 'Main Card', 'Prelims', etc.)
+    # The fight tables are usually grouped under these headers.
+    # We'll iterate through the page, track the current section, and collect fights accordingly.
+
+    current_card_type = None
+    # Find all elements that are either section headers or fight rows
+    for elem in soup.find_all(['h2', 'h3', 'tr']):
+        # Check for section header
+        if elem.name in ['h2', 'h3']:
+            text = elem.get_text(strip=True).lower()
+            if 'main card' in text:
+                current_card_type = 'Main Card'
+            elif 'prelim' in text:
+                current_card_type = 'Prelims'
+            elif 'early prelim' in text:
+                current_card_type = 'Early Prelims'
+            else:
+                # If it's a header but not a known card type, skip
+                continue
+        # Check for fight row
+        elif elem.name == 'tr' and 'b-fight-details__table-row__hover' in elem.get('class', []):
+            fight_url = elem.get('data-link')
+            if fight_url:
+                fight_urls.append(fight_url)
+                # Get fighter names for this fight
+                soup_fight = get_soup(fight_url)
+                fighters_names = [tag.text.strip() for tag in soup_fight.find_all('a', class_='b-link b-fight-details__person-link')]
+                fights_in_event.append(' vs. '.join(fighters_names))
+                card_types.append(current_card_type if current_card_type else 'Unknown')
+
     # create df to store fights
-    fight_details_df = pd.DataFrame({'BOUT':fights_in_event, 'URL':fight_urls})
+    fight_details_df = pd.DataFrame({'BOUT': fights_in_event, 'URL': fight_urls, 'CARD_TYPE': card_types})
     # create event column as key
     fight_details_df['EVENT'] = soup.find('h2', class_='b-content__title').text.strip()
     # reorder columns

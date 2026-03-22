@@ -432,32 +432,3 @@ def get_last_event():
         "MAIN_EVENT": details["MAIN_EVENT"],
         "FIGHTS": details["FIGHTS"],
     }
-
-
-def get_fight_sections(event_url: str) -> dict:
-    """
-    Given a UFC event URL, return a mapping of each fight (tuple of fighter names) to its section (e.g., 'Main Card', 'Prelims').
-    """
-    soup = _get_soup(event_url)
-    fight_sections = {}
-    current_section = None
-    # Find all elements that are either section headers or fight rows
-    for elem in soup.find_all(['h2', 'h3', 'div']):
-        # Check for section header
-        if elem.name in ['h2', 'h3']:
-            text = elem.get_text(strip=True).lower()
-            if 'main card' in text:
-                current_section = 'Main Card'
-            elif 'prelim' in text:
-                current_section = 'Prelims'
-            else:
-                current_section = None
-        # Check for fight row (UFC uses .c-listing-fight class for fights)
-        elif elem.name == 'div' and 'c-listing-fight' in elem.get('class', []):
-            # Get fighter names
-            red = elem.select_one('.c-listing-fight__corner--red .c-listing-fight__corner-name')
-            blue = elem.select_one('.c-listing-fight__corner--blue .c-listing-fight__corner-name')
-            if red and blue and current_section:
-                fight_name = (red.get_text(strip=True), blue.get_text(strip=True))
-                fight_sections[fight_name] = current_section
-    return fight_sections
